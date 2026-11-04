@@ -15,8 +15,8 @@ export function UserMessage({ message }: Props) {
     <div className="flex justify-end animate-fade-in">
       <div className="max-w-[72%]">
         <div
-          className="px-4 py-3 rounded text-sm leading-relaxed"
-          style={{ background: '#1e1e38', color: '#e8e5dc', borderLeft: '3px solid #5aafef' }}
+          className="px-4 py-2.5 rounded-2xl rounded-tr-sm text-[14px] leading-relaxed text-argus-textBright"
+          style={{ background: '#191e1c', border: '1px solid #2a322f' }}
         >
           {message.content}
         </div>

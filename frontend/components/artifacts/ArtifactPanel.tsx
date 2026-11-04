@@ -64,7 +64,7 @@ export function ArtifactPanel({ artifacts, initialIndex = 0, onClose }: Props) {
 
       case 'markdown':
         return (
-          <div className="w-full h-full overflow-auto p-6" style={{ background: '#0d0d1a' }}>
+          <div className="w-full h-full overflow-auto p-6" style={{ background: '#0b0d0c' }}>
             <div className="argus-prose text-argus-text text-sm leading-relaxed max-w-3xl mx-auto">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
                 {artifact.content}
@@ -75,7 +75,7 @@ export function ArtifactPanel({ artifacts, initialIndex = 0, onClose }: Props) {
 
       default:
         return (
-          <div className="w-full h-full overflow-auto" style={{ background: '#191a21' }}>
+          <div className="w-full h-full overflow-auto" style={{ background: '#0f1211' }}>
             <SyntaxHighlighter
               style={dracula}
               language={artifact.type}
@@ -85,7 +85,7 @@ export function ArtifactPanel({ artifacts, initialIndex = 0, onClose }: Props) {
                 borderRadius: 0,
                 fontSize: '13px',
                 minHeight: '100%',
-                background: '#191a21',
+                background: '#0f1211',
               }}
             >
               {artifact.content}
@@ -103,14 +103,14 @@ export function ArtifactPanel({ artifacts, initialIndex = 0, onClose }: Props) {
       transition={{ duration: 0.22, ease: 'easeOut' }}
       className="flex flex-col h-full"
       style={{
-        background: '#0d0d1a',
-        borderLeft: '1px solid #2a2a4a',
+        background: '#0b0d0c',
+        borderLeft: '1px solid #232a27',
       }}
     >
       {/* Header */}
       <div
         className="flex items-center gap-2 px-4 py-3 flex-shrink-0"
-        style={{ borderBottom: '1px solid #2a2a4a', background: '#0a0a14' }}
+        style={{ borderBottom: '1px solid #232a27', background: '#0a0a14' }}
       >
         {/* Artifact nav — only shown when multiple */}
         {artifacts.length > 1 && (
@@ -138,7 +138,7 @@ export function ArtifactPanel({ artifacts, initialIndex = 0, onClose }: Props) {
         {/* Type badge */}
         <span
           className="text-[9px] font-mono tracking-widest px-1.5 py-0.5 rounded"
-          style={{ background: '#1e1e3a', color: '#7878c8', border: '1px solid #3a3a6a' }}
+          style={{ background: '#191e1c', color: '#c9bf9f', border: '1px solid #36403c' }}
         >
           {artifactLabel(artifact.type)}
         </span>
@@ -182,7 +182,7 @@ export function ArtifactPanel({ artifacts, initialIndex = 0, onClose }: Props) {
       {artifacts.length > 1 && (
         <div
           className="flex gap-0 flex-shrink-0 overflow-x-auto"
-          style={{ borderBottom: '1px solid #2a2a4a' }}
+          style={{ borderBottom: '1px solid #232a27' }}
         >
           {artifacts.map((a, i) => (
             <button
@@ -190,9 +190,9 @@ export function ArtifactPanel({ artifacts, initialIndex = 0, onClose }: Props) {
               onClick={() => setActiveIdx(i)}
               className="px-3 py-1.5 text-[10px] font-mono whitespace-nowrap transition-colors"
               style={{
-                color: i === activeIdx ? '#9898d8' : '#666688',
-                borderBottom: i === activeIdx ? '1px solid #9898d8' : '1px solid transparent',
-                background: i === activeIdx ? '#12121f' : 'transparent',
+                color: i === activeIdx ? '#c9bf9f' : '#8d8c80',
+                borderBottom: i === activeIdx ? '1px solid #c9bf9f' : '1px solid transparent',
+                background: i === activeIdx ? '#0f1211' : 'transparent',
               }}
             >
               {a.title.length > 20 ? a.title.slice(0, 20) + '…' : a.title}

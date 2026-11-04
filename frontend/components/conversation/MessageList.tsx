@@ -22,7 +22,15 @@ export function MessageList({ onOpenArtifact }: Props) {
   }, [messages, streamingContent]);
 
   return (
-    <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+    <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+      {messages.length === 0 && !isStreaming && (
+        <div className="h-full flex flex-col items-center justify-center text-center">
+          <p className="display italic text-[22px] text-argus-textBright">Just you and Argus.</p>
+          <p className="mt-2 max-w-[420px] text-[13px] leading-relaxed text-argus-textDim">
+            One agent, your chosen engine, full tools. If it opens a page you’ll watch it in the Lens above.
+          </p>
+        </div>
+      )}
       {messages.map((msg) => {
         if (msg.role === 'user') {
           return <UserMessage key={msg.id} message={msg} />;

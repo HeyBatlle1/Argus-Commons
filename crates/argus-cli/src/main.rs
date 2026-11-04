@@ -76,17 +76,30 @@ fn vault_path() -> PathBuf {
         .join("vault.enc")
 }
 
-fn load_agent_config(vault: &SecureVault, cli_api_key: Option<String>) -> anyhow::Result<AgentConfig> {
-    let openrouter_key = if let Some(k) = cli_api_key {
-        k
-    } else {
-        vault.retrieve("openrouter_api_key")
-            .map_err(|e| anyhow::anyhow!(
-                "OpenRouter API key not found.\n\nStore it with:\n  argus vault set openrouter_api_key YOUR_KEY\n\nError: {}", e
-            ))?
-    };
+/// Resolve the bearer token for the LiteLLM gateway.
+///
+/// Order: vault `llm_api_key` → $ARGUS_LLM_KEY → $LITELLM_MASTER_KEY →
+/// legacy vault `openrouter_api_key` (only useful if ARGUS_LLM_URL points
+/// straight at OpenRouter) → a placeholder for an unauthenticated local gateway.
+/// The agent runtime never needs the OpenRouter key itself any more — that lives
+/// in the LiteLLM container only.
+fn resolve_llm_key(vault: Option<&SecureVault>, cli_api_key: Option<String>) -> String {
+    let env = |k: &str| std::env::var(k).ok().filter(|v| !v.is_empty());
+    cli_api_key
+        .or_else(|| vault.and_then(|v| v.retrieve("llm_api_key").ok()))
+        .or_else(|| env("ARGUS_LLM_KEY"))
+        .or_else(|| env("LITELLM_MASTER_KEY"))
+        .or_else(|| vault.and_then(|v| v.retrieve("openrouter_api_key").ok()))
+        .unwrap_or_else(|| {
+            eprintln!("[!] No LLM gateway key found (vault llm_api_key / ARGUS_LLM_KEY). \
+                       Using an empty bearer — fine only for an unauthenticated local LiteLLM.");
+            "sk-argus-local".to_string()
+        })
+}
 
-    let mut config = AgentConfig::new(openrouter_key);
+fn load_agent_config(vault: &SecureVault, cli_api_key: Option<String>) -> anyhow::Result<AgentConfig> {
+    let llm_key = resolve_llm_key(Some(vault), cli_api_key);
+    let mut config = AgentConfig::new(llm_key);
 
     if config.brave_search_key.is_none() {
         if let Ok(brave_key) = vault.retrieve("brave_search_api_key") {
@@ -234,13 +247,9 @@ async fn main() -> anyhow::Result<()> {
         Some(Commands::Daemon) => {
             println!("[*] Argus daemon starting...");
             // Vault-first, env var fallback (vault unavailable in Docker/Linux)
-            let api_key = vault.as_ref()
-                .and_then(|v| v.retrieve("openrouter_api_key").ok())
-                .or_else(|| std::env::var("OPENROUTER_API_KEY").ok())
-                .ok_or_else(|| anyhow::anyhow!(
-                    "OpenRouter key not found. Vault unavailable and OPENROUTER_API_KEY env var not set."
-                ))?;
+            let api_key = resolve_llm_key(vault.as_ref(), None);
             let mut config = AgentConfig::new(api_key);
+            println!("[+] Model gateway: {}  (default model: {})", config.api_url, config.model);
             if let Some(brave_key) = vault.as_ref()
                 .and_then(|v| v.retrieve("brave_search_api_key").ok())
                 .or_else(|| std::env::var("BRAVE_SEARCH_API_KEY").ok())
@@ -430,6 +439,8 @@ async fn main() -> anyhow::Result<()> {
                     embedding:       config.embedding.clone(),
                     skills:          config.skills.clone(),
                     audit:           config.audit.clone(),
+                    agent_id:        None,
+                    persona:         None,
                 };
                 let web_vault_keys = vault.as_ref()
                     .map(|v| v.list_keys())

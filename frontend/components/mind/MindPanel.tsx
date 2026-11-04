@@ -7,6 +7,7 @@ import { useAgentStore } from '@/hooks/useAgentState';
 import { useAccessTier } from '@/hooks/useAccessTier';
 import { CollapsibleSection } from '@/components/shared/CollapsibleSection';
 import { TierBadge } from '@/components/shared/TierBadge';
+import { PanelTitle } from '@/components/shared/PanelTitle';
 import { MemoryList } from './MemoryList';
 import { CuriosityLog } from './CuriosityLog';
 import { InnerTruth } from './InnerTruth';
@@ -26,10 +27,10 @@ export function MindPanel() {
 
   return (
     <motion.div
-      animate={{ width: collapsed ? 32 : 300 }}
+      animate={{ width: collapsed ? 36 : 310 }}
       transition={{ duration: 0.2, ease: 'easeInOut' }}
       className="relative h-full flex-shrink-0 overflow-hidden"
-      style={{ background: '#0d0d16' }}
+      style={{ background: 'rgba(15,18,17,0.6)' }}
     >
       {/* Collapsed strip */}
       <AnimatePresence>
@@ -62,28 +63,24 @@ export function MindPanel() {
             exit={{ opacity: 0 }}
             className="absolute inset-0 flex flex-col overflow-hidden"
           >
-            {/* Panel header */}
-            <div className="flex items-center justify-between px-3 py-2 border-b border-argus-borderBright flex-shrink-0" style={{ background: 'var(--surface-hi)' }}>
-              <div className="flex items-center gap-2">
-                <span className="text-[9px] font-mono tracking-widest uppercase text-argus-amber">
-                  THE MIND
-                </span>
-                <TierBadge tier={tier} />
-              </div>
-              <button
-                onClick={() => setCollapsed(true)}
-                className="text-argus-textDim hover:text-argus-amber transition-colors"
-              >
-                <ChevronRight size={14} />
-              </button>
-            </div>
-
+            <PanelTitle
+              numeral="III"
+              title="The Mind"
+              right={
+                <>
+                  <TierBadge tier={tier} />
+                  <button onClick={() => setCollapsed(true)} className="text-argus-textDim hover:text-argus-amber transition-colors" title="Collapse">
+                    <ChevronRight size={14} />
+                  </button>
+                </>
+              }
+            />
             <div className="flex-1 overflow-y-auto">
               {/* GUEST tier */}
               {tier === 'guest' && (
                 <div className="p-4">
-                  <div className="p-3 rounded text-center" style={{ background: '#111118', border: '1px solid #1a1a2e' }}>
-                    <p className="text-2xl mb-2">👁</p>
+                  <div className="p-3 rounded text-center" style={{ background: '#101413', border: '1px solid #232a27' }}>
+                    <p className="text-2xl mb-2 text-argus-textDim">○</p>
                     <p className="text-[11px] font-mono text-argus-textDim">Guest Access</p>
                     <p className="text-[10px] text-argus-textDim/60 mt-1">Read-only — no memory access</p>
                   </div>
@@ -93,9 +90,9 @@ export function MindPanel() {
               {/* ALLIED tier */}
               {tier === 'allied' && (
                 <>
-                  <div className="mx-3 mt-3 mb-2 p-2 rounded flex items-center gap-2" style={{ background: 'rgba(74,124,89,0.08)', border: '1px solid rgba(74,124,89,0.2)' }}>
-                    <span className="text-sm">🛡</span>
-                    <span className="text-[10px] font-mono text-argus-greenLight">Allied Access — limited memory scope</span>
+                  <div className="mx-3 mt-3 mb-2 p-2 rounded flex items-center gap-2" style={{ background: 'rgba(95,199,176,0.08)', border: '1px solid rgba(95,199,176,0.2)' }}>
+                    <span className="text-sm text-argus-greenLight">◇</span>
+                    <span className="text-[10px] font-mono text-argus-greenLight leading-snug">Allied — hosted open weights. Prompts leave this machine, so memory scope is limited. Switch to a local model for full access.</span>
                   </div>
                   <CollapsibleSection title="Session Context" defaultOpen={true} count={memories.filter(m => m.type === 'fact' || m.type === 'technical').length}>
                     <MemoryList memories={memories} filterTypes={['fact', 'technical']} />

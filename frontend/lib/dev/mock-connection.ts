@@ -10,15 +10,17 @@
 
 import { ArgusConnection, MessageHandler } from '@/lib/connection';
 import { ClientMessage, ServerMessage, ModelId, Memory, Curiosity, InnerTruth, PartnershipDynamic, Breakthrough } from '@/lib/types';
+import { modelConfig } from '@/lib/models';
+import { DEFAULT_ROSTER } from '@/lib/constants';
 
 // ─── Static dev data ──────────────────────────────────────────────────────
 
 export const DEV_MEMORIES: Memory[] = [
   { id: '1', content: 'Bradlee prefers direct, concise responses. No filler.', type: 'preference', importance: 9, createdAt: new Date('2026-03-01'), tags: ['communication'] },
   { id: '2', content: 'Argus1 is a Rust-based autonomous agent runtime with post-quantum crypto.', type: 'technical', importance: 10, createdAt: new Date('2026-02-15'), tags: ['project'] },
-  { id: '3', content: 'OpenRouter API key stored in vault. Brave Search key also configured.', type: 'fact', importance: 8, createdAt: new Date('2026-03-05'), tags: ['credentials'] },
+  { id: '3', content: 'LiteLLM gateway key stored in vault. Open-weight models only: Ollama local + OpenRouter hosted.', type: 'fact', importance: 8, createdAt: new Date('2026-03-05'), tags: ['credentials'] },
   { id: '4', content: 'Frontend: three-panel layout, mission control aesthetic, NOT a chatbot.', type: 'milestone', importance: 9, createdAt: new Date('2026-03-09'), tags: ['frontend'] },
-  { id: '5', content: 'Telegram bot fixed March 11 — deprecated Gemini model replaced with Haiku + Grok.', type: 'technical', importance: 7, createdAt: new Date('2026-03-11'), tags: ['bug', 'model'] },
+  { id: '5', content: 'November 2026 — roster moved to open weights only; the Commons and the Lens went live.', type: 'technical', importance: 7, createdAt: new Date('2026-03-11'), tags: ['bug', 'model'] },
 ];
 
 export const DEV_CURIOSITIES: Curiosity[] = [
@@ -61,10 +63,52 @@ export class MockConnection implements ArgusConnection {
       this._simulateResponse(msg.content);
     } else if (msg.type === 'switch_model') {
       this.activeModel = msg.model as ModelId;
+      this.handler({ type: 'status', eye_state: 'watching', model: this.activeModel });
+    } else if (msg.type === 'room_message') {
+      if (!this.roomBusy) this._simulateRoom(msg.content, msg.seats ?? DEFAULT_ROSTER.map((s) => s.id), !!msg.ambient);
+    } else if (msg.type === 'room_stop') {
+      this.roomStop = true;
     }
   }
 
   close() {}
+
+  private roomBusy = false;
+  private roomStop = false;
+
+  /** Dev-only Commons: canned voices, one fake browser call, no backend. */
+  private async _simulateRoom(prompt: string, seats: string[], ambient: boolean) {
+    this.roomBusy = true;
+    this.roomStop = false;
+    const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    const lines: Record<string, string[]> = {
+      sentinel: [`Anomaly first: “${prompt.slice(0, 50)}” — nobody has checked a primary source yet.`, 'PASS'],
+      cartographer: ['Mapping it: two threads here — what we know, and what we only assume. Gadfly is pulling the first.', 'Synthesis: Oracle and Gadfly agree more than they admit.'],
+      oracle: ['A watcher that sleeps in shifts is a distributed system. We are the shifts.', 'PASS'],
+      gadfly: ['I checked instead of guessing — see the Lens. Disagree, Oracle: shifts didn’t save Argus. Boredom killed him.', 'Still disagree.'],
+      stranger: ['Nobody asked: who watches the watchers here? We do have an audit chain. Hera didn’t.', 'PASS'],
+    };
+    const rounds = ambient ? 2 : 1;
+    for (let r = 0; r < rounds && !this.roomStop; r++) {
+      this.handler({ type: 'room_round', round: r + 1, of: rounds, ambient });
+      for (const id of seats) {
+        if (this.roomStop) break;
+        this.handler({ type: 'room_thinking', agent: id });
+        await wait(700);
+        if (id === 'gadfly' && r === 0) {
+          const callId = crypto.randomUUID();
+          this.handler({ type: 'room_tool_call', agent: id, name: 'browser', args: { action: 'navigate', url: 'https://en.wikipedia.org/wiki/Argus_Panoptes' }, callId });
+          await wait(900);
+          this.handler({ type: 'room_tool_result', agent: id, name: 'browser', result: 'URL: https://en.wikipedia.org/wiki/Argus_Panoptes\nTITLE: Argus Panoptes - Wikipedia (dev mock)', success: true, callId });
+        }
+        const text = (lines[id] ?? ['…'])[r] ?? 'PASS';
+        this.handler(text === 'PASS' ? { type: 'room_pass', agent: id } : { type: 'room_message', agent: id, content: text });
+        await wait(250);
+      }
+    }
+    this.handler({ type: 'room_idle', reason: this.roomStop ? 'stopped by operator' : ambient ? 'ambient cap reached (dev mock)' : 'round complete' });
+    this.roomBusy = false;
+  }
 
   private _simulateResponse(content: string) {
     const callId = crypto.randomUUID();
@@ -116,7 +160,7 @@ export class MockConnection implements ArgusConnection {
 
 function buildDevResponse(input: string, model: ModelId): string {
   const lower = input.toLowerCase().trim();
-  const modelName = { 'claude-haiku': 'Claude Haiku', 'claude-opus': 'Claude Opus', 'claude-sonnet': 'Claude Sonnet', 'grok': 'Grok 4', 'grok-fast': 'Grok 4.1 Fast', 'grok-multi': 'Grok 4.20 Multi', 'gemini-flash': 'Gemini 3.1' }[model] ?? model;
+  const modelName = modelConfig(model).name;
 
   if (lower.match(/^(hi|hello|hey|sup|yo)\b/)) {
     return `The hundred eyes are open.\n\nRunning on **${modelName}** (dev mode). What do you need?`;

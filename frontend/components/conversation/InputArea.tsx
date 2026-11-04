@@ -41,20 +41,17 @@ export function InputArea() {
 
   const placeholder = isStreaming
     ? `${EYE_SYMBOLS[eyeState]} ${eyeState === 'thinking' ? 'Thinking...' : eyeState === 'executing' ? 'Executing...' : 'Processing...'}`
-    : '◉ Argus is watching...';
+    : 'Talk to Argus, one on one…';
 
   return (
-    <div
-      className="flex-shrink-0 border-t border-argus-border px-4 py-3"
-      style={{ background: '#0d0d14' }}
-    >
+    <div className="flex-shrink-0 border-t border-argus-border px-4 pt-2 pb-3">
       <div
-        className={`flex items-end gap-3 rounded border px-3 py-2 transition-colors ${
+        className={`flex items-end gap-3 rounded-2xl border px-3.5 py-2.5 transition-colors ${
           isStreaming
             ? 'border-argus-amberDim/30'
             : 'border-argus-border focus-within:border-argus-amberDim'
         }`}
-        style={{ background: '#0a0a0f' }}
+        style={{ background: '#101413' }}
       >
         <textarea
           ref={textareaRef}
@@ -64,23 +61,17 @@ export function InputArea() {
           disabled={isStreaming}
           placeholder={placeholder}
           rows={1}
-          className="flex-1 bg-transparent text-sm text-argus-text placeholder-argus-textDim/50 resize-none outline-none font-sans leading-relaxed py-0.5"
+          className="bare-input flex-1 bg-transparent text-[14px] text-argus-textBright resize-none outline-none font-sans leading-relaxed py-0.5"
           style={{ maxHeight: '120px', fontFamily: "'Instrument Sans', sans-serif" }}
         />
         <motion.button
           onClick={submit}
           disabled={!value.trim() || isStreaming}
-          className="flex-shrink-0 w-7 h-7 rounded flex items-center justify-center transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
           style={{
-            background: value.trim() && !isStreaming ? 'rgba(245,184,0,0.2)' : 'transparent',
-            color: value.trim() && !isStreaming ? '#f5b800' : '#b8b5ac',
+            background: value.trim() && !isStreaming ? '#d9b36c' : 'transparent',
+            color: value.trim() && !isStreaming ? '#17130b' : '#9b9a8d',
           }}
-          animate={
-            isStreaming
-              ? { boxShadow: ['0 0 4px rgba(201,168,76,0.2)', '0 0 10px rgba(201,168,76,0.5)', '0 0 4px rgba(201,168,76,0.2)'] }
-              : {}
-          }
-          transition={isStreaming ? { duration: 1.2, repeat: Infinity } : {}}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
         >

@@ -8,17 +8,17 @@ interface Props {
 }
 
 const STATE_COLOR = {
-  idle:     '#32325a',
-  active:   '#4a8fc4',
-  complete: '#4a7c59',
-  error:    '#8b1a1a',
+  idle:     '#2a322f',
+  active:   '#7fa8e0',
+  complete: '#5fc7b0',
+  error:    '#e5624f',
 };
 
 const STATE_GLOW = {
   idle:     'none',
-  active:   '0 0 6px rgba(74,143,196,0.7)',
-  complete: '0 0 6px rgba(74,124,89,0.5)',
-  error:    '0 0 6px rgba(139,26,26,0.7)',
+  active:   '0 0 6px rgba(127,168,224,0.7)',
+  complete: '0 0 6px rgba(95,199,176,0.5)',
+  error:    '0 0 6px rgba(229,98,79,0.7)',
 };
 
 export function ToolStatus({ tool }: Props) {
@@ -34,7 +34,7 @@ export function ToolStatus({ tool }: Props) {
           style={{ background: color, boxShadow: glow }}
           animate={
             tool.state === 'active'
-              ? { opacity: [1, 0.3, 1], boxShadow: [STATE_GLOW.active, '0 0 12px rgba(74,143,196,0.9)', STATE_GLOW.active] }
+              ? { opacity: [1, 0.3, 1], boxShadow: [STATE_GLOW.active, '0 0 12px rgba(127,168,224,0.9)', STATE_GLOW.active] }
               : {}
           }
           transition={tool.state === 'active' ? { duration: 0.8, repeat: Infinity } : {}}

@@ -8,21 +8,35 @@ services:
     environment:
       - TZ=America/New_York
       - ARGUS_DATA_DIR=/argus/data
-      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      # All model traffic goes through LiteLLM. The daemon never holds a
+      # provider key — only the LiteLLM master key.
+      - ARGUS_LLM_URL=http://litellm:4000/v1/chat/completions
+      - ARGUS_EMBED_URL=http://litellm:4000/v1/embeddings
+      - ARGUS_LLM_KEY=${LITELLM_MASTER_KEY}
+      - ARGUS_DEFAULT_MODEL=${ARGUS_DEFAULT_MODEL:-local/qwen3-8b}
+      - ARGUS_BROWSER_URL=http://argus-browser:7901
+      - ARGUS_AMBIENT_MAX_ROUNDS=${ARGUS_AMBIENT_MAX_ROUNDS:-4}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - SUPABASE_ARGUS_URL=${SUPABASE_ARGUS_URL:-}
       - SUPABASE_ARGUS_SERVICE_KEY=${SUPABASE_ARGUS_SERVICE_KEY:-}
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
       - BRAVE_SEARCH_API_KEY=${BRAVE_SEARCH_API_KEY:-}
+      - WORKSPACE_EXEC_TOKEN=${WORKSPACE_EXEC_TOKEN:-}
     ports:
       - "8888:8888"
       - "9000:9000"
     volumes:
       - argus-data:/argus/data
       - workspace:/workspace
+      # NOTE: docs/SECURITY_AUDIT_LOG.md (Apr 26) records this mount as removed,
+      # but it was back on main. `:ro` does NOT limit the Docker API — this is
+      # still root-equivalent on the host. Kept only because Sentry's container
+      # list uses it; delete the line if you can live without that panel.
       - /var/run/docker.sock:/var/run/docker.sock:ro
     depends_on:
       - argus-workspace
+      - litellm
+      - argus-browser
     deploy:
       resources:
         limits:
@@ -39,6 +53,7 @@ services:
       args:
         # NEXT_PUBLIC_* must be baked in at build time — this passes it to Dockerfile ARG
         - NEXT_PUBLIC_WS_URL=ws://localhost:9000/ws
+        - NEXT_PUBLIC_BROWSER_STREAM_URL=ws://localhost:7900/stream
     container_name: argus-frontend
     restart: unless-stopped
     ports:
@@ -74,6 +89,81 @@ services:
           cpus: '2.0'
           memory: 4G
 
+  # ── The Lens: one real Chromium, one tab per agent, streamed live ─────────
+  argus-browser:
+    build:
+      context: ./browser
+    container_name: argus-browser
+    restart: unless-stopped
+    environment:
+      - BROWSER_TOKEN=${WORKSPACE_EXEC_TOKEN:-}
+      - CONTROL_PORT=7901
+      - STREAM_PORT=7900
+    ports:
+      - "127.0.0.1:7900:7900"   # read-only screencast for the frontend (localhost only)
+    expose:
+      - "7901"                  # control API — daemon only, token required
+    shm_size: 1gb
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+
+  # ── Model gateway: open weights only (see infra/litellm/config.yaml) ──────
+  litellm:
+    image: litellm/litellm:v1.106.6
+    container_name: argus-litellm
+    restart: unless-stopped
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    environment:
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      # Native Ollama app on the host (macOS default) or the container below.
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
+    volumes:
+      - ./infra/litellm/config.yaml:/app/config.yaml:ro
+    ports:
+      - "127.0.0.1:4000:4000"   # handy for your own tools; localhost only
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks: [default, llm]
+
+  # ── Local inference (profile: ollama) ─────────────────────────────────────
+  # On macOS, Docker can't reach the GPU — argus-up.sh uses the native Ollama
+  # app instead and skips this profile. On Linux+NVIDIA uncomment the GPU block.
+  ollama:
+    image: ollama/ollama:0.40.14
+    container_name: argus-ollama
+    profiles: ["ollama"]
+    restart: unless-stopped
+    volumes:
+      - ollama-models:/root/.ollama
+    networks: [llm]   # NOT on the default network — the browser can't reach it
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  ollama-pull:
+    image: ollama/ollama:0.40.14
+    profiles: ["ollama"]
+    depends_on: [ollama]
+    environment:
+      - OLLAMA_HOST=ollama:11434
+      - OLLAMA_MODELS_TO_PULL=${OLLAMA_MODELS_TO_PULL:-qwen3:8b nomic-embed-text}
+    entrypoint: ["/bin/sh", "-c", "sleep 3; for m in $$OLLAMA_MODELS_TO_PULL; do echo pulling $$m; ollama pull $$m; done"]
+    restart: "no"
+    networks: [llm]
+
+networks:
+  default: {}
+  llm: {}
+
 volumes:
   argus-data:
   workspace:
+  ollama-models:

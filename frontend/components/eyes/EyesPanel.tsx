@@ -7,10 +7,14 @@ import { useAgentStore } from '@/hooks/useAgentState';
 import { CollapsibleSection } from '@/components/shared/CollapsibleSection';
 import { EyeStateIndicator } from '@/components/shared/EyeStateIndicator';
 import { ToolStatus } from './ToolStatus';
+import { PanelTitle } from '@/components/shared/PanelTitle';
+import { Ocellus } from '@/components/shared/Ocellus';
+import { MiniCalendar } from '@/components/calendar/MiniCalendar';
+import { useLocalSchedule } from '@/hooks/useLocalSchedule';
 import { VaultStatus } from './VaultStatus';
 import { SystemInfo } from './SystemInfo';
 import { EYE_LABELS } from '@/lib/constants';
-import { MODEL_CONFIG } from '@/lib/models';
+import { modelConfig } from '@/lib/models';
 
 export function EyesPanel() {
   const [collapsed, setCollapsed] = useState(false);
@@ -22,14 +26,18 @@ export function EyesPanel() {
   const mcpServers = useAgentStore((s) => s.mcpServers);
   const connected = useAgentStore((s) => s.connected);
 
-  const modelCfg = MODEL_CONFIG[activeModel];
+  const modelCfg = modelConfig(activeModel);
+  const roster = useAgentStore((s) => s.roster);
+  const seated = useAgentStore((s) => s.seated);
+  const seatStates = useAgentStore((s) => s.seatStates);
+  const schedule = useLocalSchedule();
 
   return (
     <motion.div
-      animate={{ width: collapsed ? 32 : 240 }}
+      animate={{ width: collapsed ? 36 : 252 }}
       transition={{ duration: 0.2, ease: 'easeInOut' }}
       className="relative h-full border-r border-argus-border flex-shrink-0 overflow-hidden"
-      style={{ background: '#0d0d16' }}
+      style={{ background: 'rgba(15,18,17,0.6)' }}
     >
       {/* Collapsed strip */}
       <AnimatePresence>
@@ -60,18 +68,15 @@ export function EyesPanel() {
             exit={{ opacity: 0 }}
             className="absolute inset-0 flex flex-col overflow-y-auto"
           >
-            {/* Panel header */}
-            <div className="flex items-center justify-between px-3 py-2 border-b border-argus-borderBright flex-shrink-0" style={{ background: 'var(--surface-hi)' }}>
-              <span className="text-[9px] font-mono tracking-widest uppercase text-argus-amber">
-                THE EYES
-              </span>
-              <button
-                onClick={() => setCollapsed(true)}
-                className="text-argus-textDim hover:text-argus-amber transition-colors"
-              >
-                <ChevronLeft size={14} />
-              </button>
-            </div>
+            <PanelTitle
+              numeral="I"
+              title="The Eyes"
+              right={
+                <button onClick={() => setCollapsed(true)} className="text-argus-textDim hover:text-argus-amber transition-colors" title="Collapse">
+                  <ChevronLeft size={14} />
+                </button>
+              }
+            />
 
             {/* Agent Status */}
             <CollapsibleSection title="Agent Status" defaultOpen={true}>
@@ -89,6 +94,23 @@ export function EyesPanel() {
                     {modelCfg.icon} {modelCfg.tierLabel}
                   </span>
                 </div>
+              </div>
+            </CollapsibleSection>
+
+            {/* Residents — who lives in the Commons */}
+            <CollapsibleSection title="Residents" defaultOpen={true} count={roster.length}>
+              <div className="space-y-1.5">
+                {roster.map((seat) => {
+                  const on = seated.includes(seat.id);
+                  const st = seatStates[seat.id];
+                  return (
+                    <div key={seat.id} className="flex items-center gap-2" title={seat.temperament}>
+                      <Ocellus size={18} tone={seat.color} muted={!on} state={st === 'thinking' ? 'thinking' : st === 'executing' ? 'executing' : 'watching'} />
+                      <span className="text-[12px] display italic" style={{ color: on ? seat.color : '#64675f' }}>{seat.name}</span>
+                      <span className="ml-auto text-[9.5px] font-mono text-argus-textFaint truncate max-w-[110px]">{modelConfig(seat.model).name}</span>
+                    </div>
+                  );
+                })}
               </div>
             </CollapsibleSection>
 
@@ -123,6 +145,14 @@ export function EyesPanel() {
                   ))}
                 </div>
               )}
+            </CollapsibleSection>
+
+            {/* Calendar — the 2×2 spec from IDENTITY_GOVERNANCE.md, finally mounted */}
+            <CollapsibleSection title="Calendar" defaultOpen={false} count={schedule.count}>
+              <MiniCalendar data={schedule.data} onAddTask={schedule.add} />
+              <p className="mt-2 text-[10px] text-argus-textFaint leading-snug">
+                Hover a day, type, Enter. Stored in this browser — the daemon has no schedule endpoint yet.
+              </p>
             </CollapsibleSection>
 
             {/* System */}

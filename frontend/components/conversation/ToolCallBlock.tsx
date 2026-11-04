@@ -19,9 +19,9 @@ const STATE_EYE: Record<string, 'thinking' | 'executing' | 'complete' | 'watchin
 
 const BORDER_COLOR = {
   pending:   '#5a5a8a',
-  executing: '#4a8fc4',
-  complete:  '#4a7c59',
-  error:     '#8b1a1a',
+  executing: '#7fa8e0',
+  complete:  '#5fc7b0',
+  error:     '#e5624f',
 };
 
 const STATE_LABEL = {
@@ -43,10 +43,11 @@ export function ToolCallBlock({ toolCall }: Props) {
     <motion.div
       initial={{ opacity: 0, x: -8 }}
       animate={{ opacity: 1, x: 0 }}
-      className="my-2 rounded overflow-hidden"
+      className="my-2 rounded-lg overflow-hidden"
       style={{
+        border: '1px solid #232a27',
         borderLeft: `2px solid ${borderColor}`,
-        background: 'linear-gradient(135deg, #12121f, #16162a)',
+        background: '#0f1211',
       }}
     >
       {/* Header */}
@@ -96,7 +97,7 @@ export function ToolCallBlock({ toolCall }: Props) {
         <div className="border-t border-argus-border/40 px-3 py-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="font-mono text-sm" style={{ color: toolCall.success ? '#39d353' : '#ff4444' }}>
+              <span className="font-mono text-sm" style={{ color: toolCall.success ? '#5fc7b0' : '#e5624f' }}>
                 {toolCall.success ? '✦' : '✕'}
               </span>
               <span className="text-[10px] font-mono text-argus-textDim truncate max-w-[220px]">
@@ -127,7 +128,7 @@ export function ToolCallBlock({ toolCall }: Props) {
               >
                 <div
                   className="mt-2 p-2 rounded text-[11px] font-mono text-argus-textDim leading-relaxed max-h-40 overflow-y-auto"
-                  style={{ background: '#16162a' }}
+                  style={{ background: '#131716' }}
                 >
                   {toolCall.result}
                 </div>

@@ -180,6 +180,30 @@ pub fn builtin_tool_schemas() -> Vec<Value> {
         {
             "type": "function",
             "function": {
+                "name": "browser",
+                "description": "Drive a real Chromium browser tab. The human operator watches your tab LIVE, so act deliberately. Workflow: navigate(url) → the result lists numbered interactive elements like [7] button \"Sign in\" → click(id=7) or type(id=3, text=..., submit=true). Call read to refresh page text and element ids after the page changes. Private/internal addresses are blocked.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "action": {
+                            "type": "string",
+                            "enum": ["navigate", "read", "click", "type", "press", "scroll", "back"],
+                            "description": "What to do"
+                        },
+                        "url": { "type": "string", "description": "For navigate: absolute http(s) URL" },
+                        "id": { "type": "number", "description": "For click/type: element number from the latest page listing" },
+                        "text": { "type": "string", "description": "For type: text to enter" },
+                        "submit": { "type": "boolean", "description": "For type: press Enter after typing" },
+                        "key": { "type": "string", "description": "For press: e.g. Enter, Escape, Tab, ArrowDown" },
+                        "direction": { "type": "string", "enum": ["up", "down"], "description": "For scroll" }
+                    },
+                    "required": ["action"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
                 "name": "http_request",
                 "description": "Make an HTTP request to a URL. Supports GET, POST, PUT, DELETE.",
                 "parameters": {
@@ -648,7 +672,11 @@ fn validate_egress_url(url: &str) -> Result<(), String> {
     // Block internal Docker service hostnames explicitly — before IP parsing
     // so a prompt injection using "http://argus-workspace:9001/exec" is caught
     // even though it's a hostname, not an IP address.
-    let blocked_hostnames = ["argus-workspace", "argus-daemon", "argus-frontend"];
+    let blocked_hostnames = [
+        "argus-workspace", "argus-daemon", "argus-frontend", "argus-browser",
+        "litellm", "argus-litellm", "ollama", "argus-ollama",
+        "host.docker.internal", "gateway.docker.internal",
+    ];
     for blocked in &blocked_hostnames {
         if host == *blocked {
             return Err(format!("Blocked: internal service hostname {}", host));
@@ -733,5 +761,99 @@ async fn tool_http_request(args: &Value, client: &reqwest::Client) -> String {
                 }
             }
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Browser (the Lens)
+// ---------------------------------------------------------------------------
+
+/// Drive the agent's own Chromium tab in the argus-browser container.
+/// `agent_id` selects the tab, so every Commons seat has its own browser state
+/// and the operator can watch each one live.
+pub async fn tool_browser(
+    args: &Value,
+    client: &reqwest::Client,
+    agent_id: &str,
+    auth_token: Option<&str>,
+) -> String {
+    let action = args["action"].as_str().unwrap_or("");
+    if action.is_empty() {
+        return "Error: browser needs an action (navigate|read|click|type|press|scroll|back)".to_string();
+    }
+    if action == "navigate" {
+        let url = args["url"].as_str().unwrap_or("");
+        // Same egress policy as http_request — enforced here AND in the browser.
+        if let Err(reason) = validate_egress_url(url) {
+            return format!("Error: navigation blocked: {}", reason);
+        }
+    }
+
+    let base = std::env::var("ARGUS_BROWSER_URL")
+        .ok()
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| "http://argus-browser:7901".to_string());
+
+    let mut payload = args.clone();
+    payload["agent"] = Value::String(agent_id.to_string());
+
+    let mut req = client
+        .post(format!("{}/act", base.trim_end_matches('/')))
+        .json(&payload)
+        .timeout(std::time::Duration::from_secs(60));
+    if let Some(token) = auth_token {
+        req = req.header("X-Argus-Auth", token);
+    }
+
+    let json: Value = match req.send().await {
+        Err(e) => return format!("Error: browser unreachable: {}", e),
+        Ok(r) => match r.json().await {
+            Err(e) => return format!("Error: browser response unreadable: {}", e),
+            Ok(j) => j,
+        },
+    };
+
+    if json["ok"].as_bool() != Some(true) {
+        return format!("Error: {}", json["error"].as_str().unwrap_or("browser action failed"));
+    }
+
+    let mut out = format!(
+        "URL: {}\nTITLE: {}\n",
+        json["url"].as_str().unwrap_or(""),
+        json["title"].as_str().unwrap_or("")
+    );
+    if let Some(els) = json["elements"].as_array() {
+        if !els.is_empty() {
+            out.push_str("\nINTERACTIVE ELEMENTS:\n");
+            for e in els {
+                if let Some(line) = e.as_str() {
+                    out.push_str(line);
+                    out.push('\n');
+                }
+            }
+        }
+    }
+    if let Some(text) = json["text"].as_str() {
+        out.push_str("\nPAGE TEXT:\n");
+        out.push_str(text);
+    }
+    out
+}
+
+#[cfg(test)]
+mod egress_tests {
+    use super::validate_egress_url;
+
+    #[test]
+    fn blocks_new_internal_services() {
+        for u in [
+            "http://litellm:4000/v1/models",
+            "http://ollama:11434/api/delete",
+            "http://argus-browser:7901/act",
+            "http://host.docker.internal:11434/",
+        ] {
+            assert!(validate_egress_url(u).is_err(), "{} should be blocked", u);
+        }
+        assert!(validate_egress_url("https://example.com").is_ok());
     }
 }

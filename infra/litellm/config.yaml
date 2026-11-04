@@ -1,0 +1,98 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Argus model gateway — OPEN WEIGHTS ONLY
+#
+# Every model Argus can reach is listed here. LiteLLM serves nothing else, so
+# this file *is* the policy: if a model isn't below, no agent can call it.
+#
+#   local/*  → Ollama on your hardware. Data never leaves the machine.
+#              Frontend treats these as ROYAL tier (full Mind access).
+#   open/*   → Open-weight models hosted on OpenRouter. Weights are public
+#              (verified against Hugging Face by infra/verify-open-models.py,
+#              which argus-up.sh runs before every launch). Prompts DO leave
+#              the machine, so the frontend treats these as ALLIED tier.
+#
+# No Anthropic / OpenAI-closed / Google-Gemini / xAI models. The verifier
+# refuses to start the stack if a closed model is added here.
+#
+# Model IDs verified against OpenRouter + the Ollama registry on 2026-11-04.
+# ─────────────────────────────────────────────────────────────────────────────
+
+model_list:
+  # ── Local (Ollama) ─────────────────────────────────────────────────────────
+  # Small default — runs on most laptops (≈6 GB).
+  - model_name: local/qwen3-8b
+    litellm_params:
+      model: ollama_chat/qwen3:8b
+      api_base: os.environ/OLLAMA_BASE_URL
+
+  # Strong local generalist (≈17 GB VRAM / unified memory).
+  - model_name: local/qwen3.6-27b
+    litellm_params:
+      model: ollama_chat/qwen3.6:27b
+      api_base: os.environ/OLLAMA_BASE_URL
+
+  # OpenAI's Apache-2.0 open-weight model — good tool use (≈13 GB).
+  - model_name: local/gpt-oss-20b
+    litellm_params:
+      model: ollama_chat/gpt-oss:20b
+      api_base: os.environ/OLLAMA_BASE_URL
+
+  # Google's open-weight Gemma 4 MoE (≈16 GB).
+  - model_name: local/gemma4-26b
+    litellm_params:
+      model: ollama_chat/gemma4:26b
+      api_base: os.environ/OLLAMA_BASE_URL
+
+  # Embeddings — 768 dims, matches the existing pgvector schema exactly.
+  - model_name: local/nomic-embed
+    litellm_params:
+      model: ollama/nomic-embed-text
+      api_base: os.environ/OLLAMA_BASE_URL
+
+  # ── Open weights via OpenRouter ────────────────────────────────────────────
+  - model_name: open/deepseek-v4.1-flash
+    litellm_params:
+      model: openrouter/deepseek/deepseek-v4.1-flash
+      api_key: os.environ/OPENROUTER_API_KEY
+
+  - model_name: open/glm-5.3
+    litellm_params:
+      model: openrouter/z-ai/glm-5.3
+      api_key: os.environ/OPENROUTER_API_KEY
+
+  - model_name: open/kimi-k3
+    litellm_params:
+      model: openrouter/moonshotai/kimi-k3
+      api_key: os.environ/OPENROUTER_API_KEY
+
+  - model_name: open/mistral-large-4
+    litellm_params:
+      model: openrouter/mistralai/mistral-large-4-0
+      api_key: os.environ/OPENROUTER_API_KEY
+
+  - model_name: open/mimo-v2.6-pro
+    litellm_params:
+      model: openrouter/xiaomi/mimo-v2.6-pro
+      api_key: os.environ/OPENROUTER_API_KEY
+
+  - model_name: open/qwen3.8-27b
+    litellm_params:
+      model: openrouter/qwen/qwen3.8-27b
+      api_key: os.environ/OPENROUTER_API_KEY
+
+  - model_name: open/nemotron-3.5-super
+    litellm_params:
+      model: openrouter/nvidia/nemotron-3.5-super-vl
+      api_key: os.environ/OPENROUTER_API_KEY
+
+litellm_settings:
+  # Ollama rejects some OpenAI params (e.g. `dimensions` on embeddings).
+  # Drop them instead of failing the request.
+  drop_params: true
+  request_timeout: 300
+  num_retries: 1
+
+general_settings:
+  # Required on every request — Argus sends it as the bearer token.
+  # argus-up.sh generates it and stores it in the vault as `llm_api_key`.
+  master_key: os.environ/LITELLM_MASTER_KEY

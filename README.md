@@ -62,10 +62,13 @@ argus-sandbox   WASM isolation via wasmtime for untrusted code execution
 argus-cli       Interfaces: Telegram bot, WebSocket server, daemon mode
 ```
 
-Three Docker containers in production:
-- `argus-daemon` — agent runtime, Telegram bot, WebSocket server (ports 8888/9000)
-- `argus-workspace` — isolated execution sandbox (Python, Node, Rust, Go, Ruby) + static file server (port 8081)
-- `argus-frontend` — Next.js web interface (port 3000)
+Docker services:
+- `argus-daemon`: agent runtime, Telegram bot, WebSocket server (ports 8888/9000)
+- `argus-workspace`: isolated execution sandbox (Python, Node, Rust, Go, Ruby) + static file server (port 8081)
+- `argus-frontend`: Next.js web interface (port 3000)
+- `argus-browser`: the Lens, live Chromium with one tab per agent (stream on 127.0.0.1:7900)
+- `litellm`: open-weights-only model gateway (127.0.0.1:4000)
+- `ollama` (profile `ollama`): local inference. On macOS the native Ollama app is used instead, for GPU access
 
 ---
 
@@ -98,6 +101,7 @@ Three Docker containers in production:
 | `list_directory` | Directory listing |
 | `list_tools` | Returns full assembled tool list — built-in and MCP tools |
 | `web_search` | Brave Search integration |
+| `browser` | Drive the agent's own live Chromium tab (watched in the Lens) |
 | `http_request` | Outbound HTTP with egress policy |
 | `remember` | Store to persistent SQLite memory with Supabase pgvector sync |
 | `recall` | Semantic search across memory for manual deep-dives |
@@ -131,7 +135,7 @@ Argus maintains three vector tables in Supabase via pgvector:
 
 Every agent turn pre-fetches semantically relevant context via `search_all_semantic()` before the LLM call. Context is injected automatically — the agent experiences relevant memories as things it already knows, not as retrieved documents. The `recall` tool is available for intentional deep searches. `forget` removes memories by search term.
 
-Embedding model: `google/gemini-embedding-001` (768-dim) via OpenRouter.
+Embedding model: `nomic-embed-text` (768-dim, open weights) via local Ollama, routed through LiteLLM.
 
 ---
 
@@ -147,7 +151,7 @@ Declarative memory stores **what** Argus knows. Skills store **how** Argus opera
 
 Every agent turn runs a semantic search against `argus_skills` (HNSW pgvector, same 768-dim Gemini embeddings as the memory system). Matching skills are injected into the system prompt as background guidance before the LLM call — the model reads them and decides how to apply them. Skills suggest; they don't override.
 
-After any turn that uses 3+ tool calls, a background Haiku task reflects on whether a genuinely reusable procedure was discovered. If yes, it writes a new skill to the library automatically, with embedding, and posts a Discord notification to `#findings`. The library grows from use.
+After any turn that uses 3+ tool calls, a background task on a small local model (`MODEL_REFLECT`) reflects on whether a genuinely reusable procedure was discovered. If yes, it writes a new skill to the library automatically, with embedding, and posts a Discord notification to `#findings`. The library grows from use.
 
 ---
 
@@ -182,19 +186,52 @@ The audit chain is what makes it possible to hand the agent real access without 
 
 ---
 
-## Model Roster
+## Model Roster — open weights only
 
-| Constant | OpenRouter ID | Notes |
-|----------|--------------|-------|
-| `MODEL_HAIKU` | `anthropic/claude-haiku-4-5` | Fast, cheap |
-| `MODEL_SONNET` | `anthropic/claude-sonnet-4-6` | Balanced |
-| `MODEL_OPUS` | `anthropic/claude-opus-4-7` | Max intelligence |
-| `MODEL_GROK` | `x-ai/grok-4.3` | Standard Grok |
-| `MODEL_GROK_FAST` | `x-ai/grok-4.20` | Default model |
-| `MODEL_GROK_MULTI` | `x-ai/grok-4.20-multi-agent` | 16-agent parallel reasoning |
-| `MODEL_GEMINI` | `google/gemini-3.1-pro-preview` | Google flagship |
+All model traffic goes through **LiteLLM** (`infra/litellm/config.yaml`). LiteLLM serves only what that file lists, and `argus-up.sh` runs `infra/verify-open-models.py` before every launch: every OpenRouter entry must have published weights on Hugging Face, and closed families (Claude, Gemini, Grok, GPT-4/5, o-series) are rejected outright. The daemon never holds a provider key — only the LiteLLM master key.
 
-Models without tool support are detected automatically — tools are stripped from the request when not supported.
+| Alias | Upstream | Where it runs | Tier |
+|-------|----------|---------------|------|
+| `local/qwen3-8b` *(default)* | `qwen3:8b` | Ollama, your hardware | Royal |
+| `local/qwen3.6-27b` | `qwen3.6:27b` | Ollama | Royal |
+| `local/gpt-oss-20b` | `gpt-oss:20b` | Ollama | Royal |
+| `local/gemma4-26b` | `gemma4:26b` | Ollama | Royal |
+| `local/nomic-embed` | `nomic-embed-text` (768-d) | Ollama | embeddings |
+| `open/deepseek-v4.1-flash` | `deepseek/deepseek-v4.1-flash` | OpenRouter | Allied |
+| `open/glm-5.3` | `z-ai/glm-5.3` | OpenRouter | Allied |
+| `open/kimi-k3` | `moonshotai/kimi-k3` | OpenRouter | Allied |
+| `open/mistral-large-4` | `mistralai/mistral-large-4-0` | OpenRouter | Allied |
+| `open/mimo-v2.6-pro` | `xiaomi/mimo-v2.6-pro` | OpenRouter | Allied |
+| `open/qwen3.8-27b` | `qwen/qwen3.8-27b` | OpenRouter | Allied |
+| `open/nemotron-3.5-super` | `nvidia/nemotron-3.5-super-vl` | OpenRouter | Allied |
+
+**Tiers now mean where your data goes.** Royal = local, prompts never leave the machine, full Mind access. Allied = hosted open weights, prompts leave the machine, limited memory scope.
+
+> ⚠️ Embeddings moved from `gemini-embedding-001` to `nomic-embed-text`. Same 768 dims, so the schema is unchanged, but the vector spaces differ. Existing rows in `argus_*_vectors` must be re-embedded or cleared, or semantic recall will return noise for them.
+
+---
+
+## The Commons
+
+Five resident Argus seats share one room, each with its own open-weight engine, temperament and browser tab (`crates/argus-core/src/roster.rs`, overridable via `ARGUS_ROSTER_FILE`):
+
+| Seat | Engine | Temperament |
+|------|--------|-------------|
+| Sentinel | DeepSeek V4.1 Flash | Fast pattern-matcher; notices the anomaly first |
+| Cartographer | GLM-5.3 | Balanced; maps the territory, keeps the thread |
+| Oracle | Kimi K3 | Slow, deep, genuinely weird thoughts |
+| Gadfly | Mistral Large 4 | Adversarial; argues for sport |
+| Stranger | MiMo V2.6 Pro | Different priors; asks the question nobody asked |
+
+Seat whoever you want, say something, and each seated agent speaks once per round (or `PASS`es). **Ambient** mode lets them keep talking among themselves until everyone passes or `ARGUS_AMBIENT_MAX_ROUNDS` (default 4) is reached. You can interject mid-session (the next speaker hears you) or stop after the current speaker. Every seat keeps the full Argus toolset, shell approval and audit chain, and anything that would act in the world must be written as `PROPOSAL:` and wait for you. Tool-heavy Commons turns post findings to the intranet the same way solo turns do.
+
+## The Lens
+
+`argus-browser` runs a real Chromium (Playwright) with **one tab per agent**, and streams it to the UI over a CDP screencast. The Lens is always on screen: it follows whoever acted last (or stays pinned to a tab you pick), draws each agent's ghost cursor, click ripples and typed text, and shows thumbnails of every other agent's tab.
+
+Agents drive it with the `browser` tool: `navigate`, `read`, `click(id)`, `type(id, text, submit)`, `press`, `scroll`, `back`. Pages come back as text plus numbered interactive elements, so open models don't need vision to use it.
+
+Security: navigation goes through the same egress policy as `http_request` (in Rust), and every request any page makes is checked again inside the browser (no loopback, RFC 1918, link-local/metadata, or internal service hostnames like `litellm`, `ollama`, `argus-*`, `host.docker.internal`). Ollama sits on a separate Docker network the browser can't reach. The control API needs the workspace token, and the stream port is bound to `127.0.0.1`. **Residual risk:** DNS rebinding to a private IP isn't detected, because the hostname check runs before resolution.
 
 ---
 
@@ -204,7 +241,9 @@ Models without tool support are detected automatically — tools are stripped fr
 ./argus-up.sh
 ```
 
-Reads secrets from encrypted vault, exports to Docker environment, starts all three containers. No plaintext `.env` files.
+Reads secrets from the encrypted vault, generates the LiteLLM master key and workspace/browser token on first run (both stored in the vault), verifies that every configured model is open-weight, picks native or containerized Ollama, then starts the stack. No plaintext `.env` files.
+
+The OpenRouter key is optional. Without it, only `local/*` models answer, and the Commons seats (which default to `open/*`) will error until you point them at local models via `ARGUS_ROSTER_FILE`.
 
 See [docs/SETUP.md](./docs/SETUP.md) for full setup instructions.
 

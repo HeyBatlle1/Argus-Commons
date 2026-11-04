@@ -1,6 +1,10 @@
 //! Semantic embedding layer for Argus
 //!
-//! Converts text → 768-dim vectors via google/gemini-embedding-001 on OpenRouter.
+//! Converts text → 768-dim vectors via nomic-embed-text (open weights, local
+//! Ollama) through the LiteLLM gateway. Same dimensionality as the original
+//! gemini-embedding-001 setup, so the pgvector schema is unchanged — BUT the
+//! vector spaces differ: rows embedded by the old model must be re-embedded
+//! (or cleared) or similarity search will return noise for them.
 //! Stores vectors in Supabase pgvector tables.
 //! Searches all three surfaces (memories, discourse, conversations) simultaneously.
 //!
@@ -17,9 +21,9 @@ use crate::supabase::{SupabaseClient, DiscoursePost, DiscourseRecord};
 
 // ── Embedding model ───────────────────────────────────────────────────────
 
-/// google/gemini-embedding-001 via OpenRouter
-/// 768-dimensional output, optimized for semantic similarity
-pub const EMBEDDING_MODEL: &str = "google/gemini-embedding-001";
+/// nomic-embed-text via LiteLLM alias (infra/litellm/config.yaml)
+/// 768-dimensional output. Override with ARGUS_EMBED_MODEL.
+pub const EMBEDDING_MODEL: &str = "local/nomic-embed";
 pub const EMBEDDING_DIMS: usize = 768;
 
 // ── Result types ──────────────────────────────────────────────────────────
@@ -39,6 +43,8 @@ pub struct EmbeddingClient {
     openrouter_key: String,
     supabase: SupabaseClient,
     http: Client,
+    url: String,
+    model: String,
 }
 
 impl EmbeddingClient {
@@ -47,6 +53,10 @@ impl EmbeddingClient {
             openrouter_key: openrouter_key.into(),
             supabase,
             http: Client::new(),
+            url: std::env::var("ARGUS_EMBED_URL").ok().filter(|v| !v.is_empty())
+                .unwrap_or_else(|| "http://litellm:4000/v1/embeddings".to_string()),
+            model: std::env::var("ARGUS_EMBED_MODEL").ok().filter(|v| !v.is_empty())
+                .unwrap_or_else(|| EMBEDDING_MODEL.to_string()),
         }
     }
 
@@ -54,13 +64,13 @@ impl EmbeddingClient {
         let truncated = if text.len() > 8000 { &text[..8000] } else { text };
 
         let body = serde_json::json!({
-            "model": EMBEDDING_MODEL,
+            "model": self.model,
             "input": truncated,
             "dimensions": EMBEDDING_DIMS,
         });
 
         let resp = self.http
-            .post("https://openrouter.ai/api/v1/embeddings")
+            .post(&self.url)
             .header("Authorization", format!("Bearer {}", self.openrouter_key))
             .header("Content-Type", "application/json")
             .json(&body)
@@ -108,7 +118,7 @@ impl EmbeddingClient {
             "from_agent": from_agent,
             "content": content,
             "embedding": Self::to_pg_vector(&vector),
-            "model_used": EMBEDDING_MODEL,
+            "model_used": self.model,
         });
         self.supabase.insert("argus_memory_vectors", &data).await
     }
@@ -123,7 +133,7 @@ impl EmbeddingClient {
             "content": content,
             "post_type": post_type,
             "embedding": Self::to_pg_vector(&vector),
-            "model_used": EMBEDDING_MODEL,
+            "model_used": self.model,
         });
         self.supabase.insert("argus_discourse_vectors", &data).await
     }
@@ -137,7 +147,7 @@ impl EmbeddingClient {
             "surface": surface,
             "summary": summary,
             "embedding": Self::to_pg_vector(&vector),
-            "model_used": EMBEDDING_MODEL,
+            "model_used": self.model,
         });
         self.supabase.insert("argus_conversation_vectors", &data).await
     }

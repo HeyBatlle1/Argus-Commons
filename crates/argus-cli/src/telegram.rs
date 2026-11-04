@@ -7,7 +7,7 @@ use std::time::Instant;
 use tokio::sync::Mutex;
 
 use argus_memory::sqlite::SqliteMemory;
-use argus_core::{AgentConfig, AgentEvent, ConversationMessage, ShellPolicy, MODEL_HAIKU, MODEL_SONNET, MODEL_OPUS, MODEL_GROK, MODEL_GEMINI, model_label};
+use argus_core::{AgentConfig, AgentEvent, ConversationMessage, ShellPolicy, MODEL_REFLECT, MODEL_SHORT_NAMES, model_label};
 
 /// Per-chat rate limit: max N messages per window.
 const RATE_LIMIT_MAX: u32 = 10;
@@ -62,10 +62,13 @@ impl ArgusBot {
         match parts[0] {
             "/model" => {
                 if parts.len() == 1 {
+                    let list = MODEL_SHORT_NAMES.iter()
+                        .map(|(short, id)| format!("  {:<10} — {}", short, model_label(id)))
+                        .collect::<Vec<_>>()
+                        .join("\n");
                     Some(format!(
-                        "Current model: {} ({})\n\nAvailable:\n  haiku  — {}\n  sonnet — {}\n  opus   — {}\n  grok   — {}\n  gemini — {}\n\nSwitch with /model <name>",
-                        model_label(&self.config.model), self.config.model,
-                        MODEL_HAIKU, MODEL_SONNET, MODEL_OPUS, MODEL_GROK, MODEL_GEMINI
+                        "Current model: {} ({})\n\nAvailable (open weights only):\n{}\n\nSwitch with /model <name>",
+                        model_label(&self.config.model), self.config.model, list
                     ))
                 } else {
                     match self.config.set_model(parts[1].trim()) {
@@ -186,7 +189,7 @@ async fn summarize_and_embed(
         .join("\n");
 
     let body = serde_json::json!({
-        "model": MODEL_HAIKU,
+        "model": MODEL_REFLECT,
         "messages": [
             {"role": "system", "content": "Summarize this conversation in 2-4 sentences. Focus on topics covered, decisions made, and anything memorable. Be factual and concise."},
             {"role": "user", "content": transcript}

@@ -9,17 +9,15 @@
 //! Messages arriving in any configured channel:
 //!   1. Recent discourse pulled from argus_agent_discourse (last 10 posts)
 //!   2. Injected as [RECENT INTRANET ACTIVITY] context before the user message
-//!   3. run_agent_turn called with MODEL_GROK_FAST (default)
+//!   3. run_agent_turn called with the default model (ARGUS_DEFAULT_MODEL)
 //!   4. Response posted back via Discord webhook with model emoji+name as username
 //!
 //! # Model routing by prefix
 //!
 //! Prefix a message with @mention to route to a different model:
-//!   @sonnet  → Claude Sonnet
-//!   @opus    → Claude Opus
-//!   @haiku   → Claude Haiku
-//!   @gemini  → Gemini Pro
-//!   @grok    → Grok (standard)
+//!   @deepseek → DeepSeek V4.1 Flash   @glm   → GLM-5.3
+//!   @kimi     → Kimi K3               @mistral → Mistral Large 4
+//!   @mimo     → MiMo V2.6 Pro         @local → local Qwen3 (Ollama)
 //!
 //! # Setup
 //!
@@ -62,7 +60,7 @@ mod full {
     use super::*;
     use argus_core::{
         AgentEvent, ConversationMessage, MemoryBackend, MemoryRecord,
-        MODEL_HAIKU, MODEL_SONNET, MODEL_OPUS, MODEL_GEMINI, MODEL_GROK, MODEL_GROK_FAST,
+        MODEL_LOCAL_FAST, MODEL_DEEPSEEK, MODEL_GLM, MODEL_KIMI, MODEL_MISTRAL, MODEL_MIMO,
         run_agent_turn,
         shell::ShellPolicy,
         mcp::McpClient,
@@ -218,11 +216,12 @@ mod full {
     fn parse_model_prefix(text: &str) -> (Option<&'static str>, &str) {
         let lower = text.to_lowercase();
         let prefixes: &[(&str, &'static str)] = &[
-            ("@sonnet ", MODEL_SONNET),
-            ("@opus ",   MODEL_OPUS),
-            ("@haiku ",  MODEL_HAIKU),
-            ("@gemini ", MODEL_GEMINI),
-            ("@grok ",   MODEL_GROK),
+            ("@deepseek ", MODEL_DEEPSEEK),
+            ("@glm ",      MODEL_GLM),
+            ("@kimi ",     MODEL_KIMI),
+            ("@mistral ",  MODEL_MISTRAL),
+            ("@mimo ",     MODEL_MIMO),
+            ("@local ",    MODEL_LOCAL_FAST),
         ];
         for (prefix, model) in prefixes {
             if lower.starts_with(prefix) {
@@ -285,12 +284,12 @@ mod full {
     /// Map model ID to emoji + name string for Discord webhook username.
     fn model_username(model_id: &str) -> &'static str {
         match model_id {
-            MODEL_HAIKU     => "🐇 Argus · Haiku",
-            MODEL_SONNET    => "🎯 Argus · Sonnet",
-            MODEL_OPUS      => "🧠 Argus · Opus",
-            MODEL_GEMINI    => "🌟 Argus · Gemini",
-            MODEL_GROK      => "🔮 Argus · Grok",
-            MODEL_GROK_FAST => "⚡ Argus · Grok Fast",
+            MODEL_LOCAL_FAST => "🏠 Argus · Local",
+            MODEL_DEEPSEEK   => "🐋 Argus · DeepSeek",
+            MODEL_GLM        => "🗺 Argus · GLM",
+            MODEL_KIMI       => "🌙 Argus · Kimi",
+            MODEL_MISTRAL    => "🌬 Argus · Mistral",
+            MODEL_MIMO       => "🧭 Argus · MiMo",
             _               => "⚡ Argus",
         }
     }

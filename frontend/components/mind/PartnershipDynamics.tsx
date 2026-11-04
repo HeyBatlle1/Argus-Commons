@@ -7,10 +7,10 @@ interface Props {
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
-  communication: '#4a8fc4',
-  collaboration:  '#c9a84c',
-  values:         '#4a7c59',
-  process:        '#8b5cf6',
+  communication: '#7fa8e0',
+  collaboration:  '#d9b36c',
+  values:         '#5fc7b0',
+  process:        '#9b8ad8',
 };
 
 export function PartnershipDynamics({ dynamics }: Props) {
@@ -21,12 +21,12 @@ export function PartnershipDynamics({ dynamics }: Props) {
   return (
     <div className="space-y-2">
       {dynamics.map((d) => {
-        const catColor = CATEGORY_COLORS[d.category] ?? '#8a877f';
+        const catColor = CATEGORY_COLORS[d.category] ?? '#8d8c80';
         return (
           <div
             key={d.id}
             className="p-2 rounded"
-            style={{ background: '#16162a', border: '1px solid #32325a' }}
+            style={{ background: '#131716', border: '1px solid #2a322f' }}
           >
             <div className="flex items-start justify-between gap-2 mb-1">
               <span className="text-[11px] font-mono text-argus-text font-medium">{d.patternName}</span>
@@ -39,7 +39,7 @@ export function PartnershipDynamics({ dynamics }: Props) {
             </div>
             {/* Importance bar */}
             <div className="flex items-center gap-1.5 mb-1.5">
-              <div className="flex-1 h-0.5 rounded-full" style={{ background: '#32325a' }}>
+              <div className="flex-1 h-0.5 rounded-full" style={{ background: '#2a322f' }}>
                 <div
                   className="h-0.5 rounded-full"
                   style={{ width: `${d.importance * 10}%`, background: catColor }}

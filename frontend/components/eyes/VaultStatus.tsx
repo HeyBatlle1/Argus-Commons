@@ -18,7 +18,7 @@ export function VaultStatus({ locked, keys }: Props) {
         )}
         <span
           className="text-[11px] font-mono"
-          style={{ color: locked ? '#8b1a1a' : '#4a7c59' }}
+          style={{ color: locked ? '#e5624f' : '#5fc7b0' }}
         >
           {locked ? 'LOCKED' : 'UNLOCKED'}
         </span>

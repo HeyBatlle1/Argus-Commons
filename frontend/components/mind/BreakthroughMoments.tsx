@@ -19,12 +19,12 @@ export function BreakthroughMoments({ breakthroughs }: Props) {
           key={b.id}
           className="p-2.5 rounded"
           style={{
-            background: '#16162a',
-            border: '1px solid #32325a',
-            boxShadow: `0 0 ${b.emotionalWeight * 1.5}px rgba(201,168,76,${b.emotionalWeight / 80})`,
+            background: '#131716',
+            border: '1px solid #2a322f',
+            boxShadow: `0 0 ${b.emotionalWeight * 1.5}px rgba(217,179,108,${b.emotionalWeight / 80})`,
           }}
           whileHover={{
-            boxShadow: `0 0 ${b.emotionalWeight * 3}px rgba(201,168,76,${b.emotionalWeight / 40})`,
+            boxShadow: `0 0 ${b.emotionalWeight * 3}px rgba(217,179,108,${b.emotionalWeight / 40})`,
           }}
         >
           <div className="flex items-center justify-between mb-1">
@@ -36,10 +36,10 @@ export function BreakthroughMoments({ breakthroughs }: Props) {
           <p className="text-[10px] text-argus-textDim leading-relaxed">{b.description}</p>
           {/* Emotional weight */}
           <div className="flex items-center gap-1.5 mt-1.5">
-            <div className="flex-1 h-0.5 rounded-full" style={{ background: '#32325a' }}>
+            <div className="flex-1 h-0.5 rounded-full" style={{ background: '#2a322f' }}>
               <div
                 className="h-0.5 rounded-full"
-                style={{ width: `${b.emotionalWeight * 10}%`, background: 'linear-gradient(to right, #8a6f2e, #c9a84c)' }}
+                style={{ width: `${b.emotionalWeight * 10}%`, background: 'linear-gradient(to right, #a6854b, #d9b36c)' }}
               />
             </div>
           </div>

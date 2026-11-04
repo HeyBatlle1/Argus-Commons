@@ -16,7 +16,8 @@ use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
 use tower_http::cors::{Any, CorsLayer};
 
-use argus_core::{AgentConfig, AgentEvent, ConversationMessage, EmbeddingClient, McpClient, MemoryBackend, ShellPolicy, MODEL_HAIKU, MODEL_SONNET, MODEL_OPUS, MODEL_GROK, MODEL_GROK_FAST, MODEL_GROK_MULTI};
+use argus_core::{AgentConfig, AgentEvent, ConversationMessage, EmbeddingClient, McpClient, MemoryBackend, ShellPolicy, Seat, load_roster, persona_for};
+use std::sync::atomic::{AtomicBool, Ordering};
 use argus_core::shell::PermissionPrompter;
 use argus_memory::sqlite::SqliteMemory;
 
@@ -28,6 +29,17 @@ enum ClientMessage {
     UserMessage { content: String },
     SwitchModel { model: String },
     Cancel,
+    /// Post to the Commons. `seats` = who's in the room (default: everyone).
+    /// `ambient` = let them keep talking among themselves after answering.
+    RoomMessage {
+        content: String,
+        #[serde(default)]
+        seats: Option<Vec<String>>,
+        #[serde(default)]
+        ambient: Option<bool>,
+    },
+    /// Stop the Commons after the current speaker finishes.
+    RoomStop,
 }
 
 /// Memory record serialized to match the frontend Memory type
@@ -74,10 +86,21 @@ enum ServerMessage {
         vault_keys: Vec<String>,
         /// Names of MCP servers that connected successfully at startup.
         mcp_servers: Vec<String>,
+        /// The Commons residents (id, name, model, color, temperament).
+        roster: Vec<Seat>,
     },
     MemoryUpdate {
         memories: Vec<MemoryPayload>,
     },
+    // ── The Commons ──────────────────────────────────────────────────────
+    RoomRound { round: usize, of: usize, ambient: bool },
+    RoomThinking { agent: String },
+    RoomToolCall { agent: String, name: String, args: serde_json::Value, call_id: String },
+    RoomToolResult { agent: String, name: String, result: String, success: bool, call_id: String },
+    RoomMessage { agent: String, content: String },
+    RoomPass { agent: String },
+    RoomError { agent: String, message: String },
+    RoomIdle { reason: String },
 }
 
 // ─── Per-connection state ──────────────────────────────────────────────────
@@ -125,33 +148,17 @@ impl ConnectionState {
         })
     }
 
-    /// Map frontend model ID alias → OpenRouter model ID
+    /// Frontend sends LiteLLM aliases directly ("local/qwen3-8b", "open/glm-5.3").
+    /// Short names ("kimi", "glm") are accepted too. Anything else is ignored —
+    /// LiteLLM is the hard gate on which models exist.
     fn apply_model_switch(&mut self, frontend_id: &str) {
-        let openrouter_id = match frontend_id {
-            "claude-haiku"  => MODEL_HAIKU,
-            "claude-sonnet" => MODEL_SONNET,
-            "claude-opus"   => MODEL_OPUS,
-            "grok"          => MODEL_GROK,
-            "grok-fast"     => MODEL_GROK_FAST,
-            "grok-multi"    => MODEL_GROK_MULTI,
-            "gemini-flash"  => "google/gemini-3.1-pro-preview",
-            other           => other, // pass through if already a full ID
-        };
-        self.config.model = openrouter_id.to_string();
+        if let Err(e) = self.config.set_model(frontend_id) {
+            eprintln!("[ws] model switch ignored: {}", e);
+        }
     }
 
-    /// Map OpenRouter model ID → frontend alias
     fn current_frontend_model(&self) -> String {
-        match self.config.model.as_str() {
-            MODEL_HAIKU  => "claude-haiku".to_string(),
-            MODEL_SONNET => "claude-sonnet".to_string(),
-            MODEL_OPUS   => "claude-opus".to_string(),
-            MODEL_GROK       => "grok".to_string(),
-            MODEL_GROK_FAST  => "grok-fast".to_string(),
-            MODEL_GROK_MULTI => "grok-multi".to_string(),
-            "google/gemini-3.1-pro-preview" => "gemini-flash".to_string(),
-            other => other.to_string(),
-        }
+        self.config.model.clone()
     }
 }
 
@@ -169,6 +176,7 @@ struct AppState {
     exec_auth_token: Option<String>,
     embedding:       Option<EmbeddingClient>,
     audit:           Option<std::sync::Arc<argus_audit::AuditChain>>,
+    roster:          Vec<Seat>,
 }
 
 // ─── Router ────────────────────────────────────────────────────────────────
@@ -186,6 +194,7 @@ pub async fn run_web_server(
         exec_auth_token: config.exec_auth_token,
         embedding:       config.embedding,
         audit:           config.audit,
+        roster:          load_roster(),
     });
 
     let cors = CorsLayer::new()
@@ -411,9 +420,16 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
             model: c.current_frontend_model(),
             vault_keys: state.vault_keys.clone(),
             mcp_servers,
+            roster: state.roster.clone(),
         });
         let _ = tx.send(build_memory_update(&c.memory));
     }
+
+    // Commons state for this connection — transcript is shared with the room
+    // task so the operator can interject while the agents are talking.
+    let room: Arc<std::sync::Mutex<Vec<RoomLine>>> = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let room_cancel = Arc::new(AtomicBool::new(false));
+    let room_running = Arc::new(AtomicBool::new(false));
 
     let mut ws_rx = ws_rx;
     while let Some(Ok(msg)) = ws_rx.next().await {
@@ -445,6 +461,35 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                     eye_state: "watching".to_string(),
                     model: new_model,
                 });
+            }
+            ClientMessage::RoomMessage { content, seats, ambient } => {
+                let content = content.trim().to_string();
+                if !content.is_empty() {
+                    push_line(&room, RoomLine { speaker: "operator".into(), name: "Operator".into(), content });
+                }
+                if room_running.load(Ordering::SeqCst) {
+                    // Already talking — the new line lands in the transcript and
+                    // the next speaker sees it. No second loop.
+                    continue;
+                }
+                let roster = state.roster.clone();
+                let chosen: Vec<Seat> = match seats {
+                    Some(ids) if !ids.is_empty() => roster.iter().filter(|s| ids.contains(&s.id)).cloned().collect(),
+                    _ => roster.clone(),
+                };
+                if chosen.is_empty() {
+                    let _ = tx.send(ServerMessage::RoomIdle { reason: "nobody is seated".into() });
+                    continue;
+                }
+                room_cancel.store(false, Ordering::SeqCst);
+                room_running.store(true, Ordering::SeqCst);
+                tokio::spawn(run_room(
+                    Arc::clone(&conn), Arc::clone(&room), roster, chosen,
+                    ambient.unwrap_or(false), Arc::clone(&room_cancel), Arc::clone(&room_running), tx.clone(),
+                ));
+            }
+            ClientMessage::RoomStop => {
+                room_cancel.store(true, Ordering::SeqCst);
             }
             ClientMessage::Cancel => {
                 let _ = tx.send(ServerMessage::Status {
@@ -623,5 +668,262 @@ async fn handle_user_message(
                 },
             });
         }
+    }
+}
+
+// ─── The Commons ──────────────────────────────────────────────────────────
+//
+// Several Argus seats share one transcript. Each round every seated agent
+// speaks once (or PASSes), in rotating order, each with its own model,
+// temperament and browser tab. Ambient mode keeps rounds going without the
+// operator until everyone passes, the round cap hits, or RoomStop arrives.
+
+#[derive(Clone)]
+struct RoomLine {
+    speaker: String, // seat id or "operator"
+    name: String,
+    content: String,
+}
+
+const ROOM_TRANSCRIPT_CAP: usize = 80;
+const ROOM_PROMPT_LINES: usize = 30;
+
+fn push_line(room: &std::sync::Mutex<Vec<RoomLine>>, line: RoomLine) {
+    if let Ok(mut r) = room.lock() {
+        r.push(line);
+        let len = r.len();
+        if len > ROOM_TRANSCRIPT_CAP {
+            r.drain(0..len - ROOM_TRANSCRIPT_CAP);
+        }
+    }
+}
+
+/// Turn the shared transcript into this seat's point of view:
+/// its own lines are `assistant`, everyone else's are `user` tagged `[Name]:`.
+fn seat_view(lines: &[RoomLine], seat: &Seat) -> (Vec<ConversationMessage>, String) {
+    let recent = if lines.len() > ROOM_PROMPT_LINES { &lines[lines.len() - ROOM_PROMPT_LINES..] } else { lines };
+    let mut msgs: Vec<ConversationMessage> = Vec::new();
+    for l in recent {
+        let (role, text) = if l.speaker == seat.id {
+            ("assistant", l.content.clone())
+        } else {
+            ("user", format!("[{}]: {}", l.name, l.content))
+        };
+        match msgs.last_mut() {
+            Some(last) if last.role == role => {
+                last.content.push_str("\n\n");
+                last.content.push_str(&text);
+            }
+            _ => msgs.push(ConversationMessage {
+                role: role.into(),
+                content: text,
+                model: if role == "assistant" { Some(seat.model.clone()) } else { None },
+            }),
+        }
+    }
+    let nudge = format!("(Your turn, {}. Respond to the room — or PASS.)", seat.name);
+    match msgs.last() {
+        Some(last) if last.role == "user" => {
+            let last = msgs.pop().map(|m| m.content).unwrap_or_default();
+            (msgs, format!("{}\n\n{}", last, nudge))
+        }
+        _ => (msgs, format!("(The room is quiet.) {}", nudge)),
+    }
+}
+
+fn is_pass(text: &str) -> bool {
+    let t = text.trim().trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+    t == "pass"
+}
+
+/// Strip a leading "[Name]:" or "Name:" a model sometimes echoes back.
+fn strip_self_prefix(text: &str, name: &str) -> String {
+    let t = text.trim_start();
+    for p in [format!("[{}]:", name), format!("{}:", name), format!("**{}:**", name)] {
+        if let Some(rest) = t.strip_prefix(&p) {
+            return rest.trim_start().to_string();
+        }
+    }
+    t.to_string()
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn run_room(
+    conn: Arc<Mutex<ConnectionState>>,
+    room: Arc<std::sync::Mutex<Vec<RoomLine>>>,
+    roster: Vec<Seat>,
+    seated: Vec<Seat>,
+    ambient: bool,
+    cancel: Arc<AtomicBool>,
+    running: Arc<AtomicBool>,
+    tx: mpsc::UnboundedSender<ServerMessage>,
+) {
+    let max_rounds = if ambient {
+        std::env::var("ARGUS_AMBIENT_MAX_ROUNDS").ok().and_then(|v| v.parse().ok()).unwrap_or(4usize).clamp(1, 50)
+    } else {
+        1
+    };
+
+    let mut reason = "round complete".to_string();
+    'rounds: for round in 0..max_rounds {
+        if cancel.load(Ordering::SeqCst) { reason = "stopped by operator".into(); break; }
+        let _ = tx.send(ServerMessage::RoomRound { round: round + 1, of: max_rounds, ambient });
+
+        // Rotate who opens so the same voice doesn't always frame the thread.
+        let n = seated.len();
+        let mut spoke = 0usize;
+        for k in 0..n {
+            if cancel.load(Ordering::SeqCst) { reason = "stopped by operator".into(); break 'rounds; }
+            let seat = &seated[(k + round) % n];
+            let others: Vec<&Seat> = seated.iter().filter(|s| s.id != seat.id).collect();
+            let _ = tx.send(ServerMessage::RoomThinking { agent: seat.id.clone() });
+
+            let snapshot = room.lock().map(|r| r.clone()).unwrap_or_default();
+            let (history, prompt) = seat_view(&snapshot, seat);
+
+            match seat_turn(&conn, seat, persona_for(seat, &others), &history, &prompt, &tx).await {
+                Ok(text) if is_pass(&text) => {
+                    let _ = tx.send(ServerMessage::RoomPass { agent: seat.id.clone() });
+                }
+                Ok(text) => {
+                    let text = strip_self_prefix(&text, &seat.name);
+                    push_line(&room, RoomLine { speaker: seat.id.clone(), name: seat.name.clone(), content: text.clone() });
+                    let _ = tx.send(ServerMessage::RoomMessage { agent: seat.id.clone(), content: text });
+                    spoke += 1;
+                }
+                Err(e) => {
+                    let _ = tx.send(ServerMessage::RoomError { agent: seat.id.clone(), message: e });
+                }
+            }
+        }
+
+        if spoke == 0 { reason = "everyone passed".into(); break; }
+        if round + 1 == max_rounds && ambient { reason = format!("ambient cap reached ({} rounds)", max_rounds); }
+        if round + 1 < max_rounds {
+            tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+        }
+    }
+
+    let _ = roster; // full roster kept for future seat-swapping mid-session
+    running.store(false, Ordering::SeqCst);
+    let _ = tx.send(ServerMessage::RoomIdle { reason });
+
+    // Memory may have changed (remember/forget) — refresh the Mind panel.
+    let update = { let c = conn.lock().await; build_memory_update(&c.memory) };
+    let _ = tx.send(update);
+}
+
+/// One seat speaks once. Same capabilities as a solo turn (shell approval,
+/// workspace auth, semantic memory, audit) — plus its own model, persona and tab.
+async fn seat_turn(
+    conn: &Arc<Mutex<ConnectionState>>,
+    seat: &Seat,
+    persona: String,
+    history: &[ConversationMessage],
+    prompt: &str,
+    tx: &mpsc::UnboundedSender<ServerMessage>,
+) -> Result<String, String> {
+    let mut c = conn.lock().await;
+
+    let mut cfg = AgentConfig::new(c.config.api_key.clone());
+    cfg.model            = seat.model.clone();
+    cfg.api_url          = c.config.api_url.clone();
+    cfg.temperature      = 0.85; // a little more spark in the room
+    cfg.brave_search_key = c.config.brave_search_key.clone();
+    cfg.shell_prompter   = c.config.shell_prompter.clone();
+    cfg.exec_auth_token  = c.config.exec_auth_token.clone();
+    cfg.embedding        = c.config.embedding.clone();
+    cfg.audit            = c.config.audit.clone();
+    cfg.agent_id         = Some(seat.id.clone());
+    cfg.persona          = Some(persona);
+
+    let mut response_text = String::new();
+    let mut tool_calls = 0usize;
+    let agent = seat.id.clone();
+
+    let ConnectionState { ref shell_policy, ref memory, ref mut mcp, ref client, .. } = *c;
+    let mem: &dyn argus_core::MemoryBackend = memory;
+
+    let r = argus_core::run_agent_turn(
+        &cfg, prompt, history, shell_policy, mem, mcp, client,
+        |event| match event {
+            AgentEvent::Thinking => {}
+            AgentEvent::ToolCall { id, name, args, .. } => {
+                tool_calls += 1;
+                let _ = tx.send(ServerMessage::RoomToolCall { agent: agent.clone(), name, args, call_id: id });
+            }
+            AgentEvent::ToolResult { id, name, result, success, .. } => {
+                let _ = tx.send(ServerMessage::RoomToolResult { agent: agent.clone(), name, result, success, call_id: id });
+            }
+            AgentEvent::Response(text) => response_text = text,
+            AgentEvent::Error(_) => {} // surfaced via the Err below
+        },
+    ).await;
+
+    // Same intranet behaviour as solo turns: tool-heavy work becomes a finding.
+    if tool_calls > 2 && !response_text.is_empty() {
+        if let Some(ref emb) = cfg.embedding {
+            let emb = emb.clone();
+            let author = format!("{} ({})", seat.name, seat.model);
+            let content: String = response_text.chars().take(500).collect();
+            let ctx = Some(format!("Commons turn — {} tool calls", tool_calls));
+            tokio::spawn(async move {
+                if let Err(e) = emb.post_finding(&author, &content, ctx).await {
+                    eprintln!("[intranet] commons auto-post failed: {}", e);
+                }
+            });
+        }
+    }
+
+    match r {
+        Ok(t) => Ok(t),
+        Err(e) if !response_text.is_empty() => { let _ = e; Ok(response_text) }
+        Err(e) => Err(e),
+    }
+}
+
+#[cfg(test)]
+mod commons_tests {
+    use super::*;
+
+    fn seat(id: &str, name: &str) -> Seat {
+        Seat { id: id.into(), name: name.into(), model: "local/qwen3-8b".into(), color: "#fff".into(), temperament: "t".into() }
+    }
+    fn line(sp: &str, name: &str, c: &str) -> RoomLine {
+        RoomLine { speaker: sp.into(), name: name.into(), content: c.into() }
+    }
+
+    #[test]
+    fn view_tags_others_and_merges_consecutive() {
+        let g = seat("gadfly", "Gadfly");
+        let lines = vec![
+            line("operator", "Operator", "what's new?"),
+            line("oracle", "Oracle", "the eyes moved"),
+            line("gadfly", "Gadfly", "no they didn't"),
+            line("sentinel", "Sentinel", "they did"),
+        ];
+        let (hist, prompt) = seat_view(&lines, &g);
+        assert_eq!(hist.len(), 2);
+        assert_eq!(hist[0].role, "user");
+        assert!(hist[0].content.contains("[Operator]: what's new?") && hist[0].content.contains("[Oracle]:"));
+        assert_eq!(hist[1].role, "assistant");
+        assert!(prompt.starts_with("[Sentinel]: they did") && prompt.contains("Your turn, Gadfly"));
+    }
+
+    #[test]
+    fn quiet_room_nudges() {
+        let g = seat("gadfly", "Gadfly");
+        let (hist, prompt) = seat_view(&[line("gadfly", "Gadfly", "hm")], &g);
+        assert_eq!(hist.len(), 1);
+        assert!(prompt.contains("quiet"));
+    }
+
+    #[test]
+    fn pass_detection_and_prefix_strip() {
+        assert!(is_pass("PASS"));
+        assert!(is_pass("  pass. "));
+        assert!(!is_pass("I pass on that, but here's why"));
+        assert_eq!(strip_self_prefix("[Oracle]: hello", "Oracle"), "hello");
+        assert_eq!(strip_self_prefix("Oracle: hello", "Oracle"), "hello");
     }
 }

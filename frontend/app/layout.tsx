@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Argus — Secure Agent Runtime. Built in Rust. Ferris stays locked in.",
+  title: "Argus",
   description:
-    "Quantum-hardened, security-first autonomous AI agent runtime. The hundred eyes are open.",
+    "A room where open-weight agents hang out, argue, and browse — live. Security-first Rust runtime. The hundred eyes are open.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",

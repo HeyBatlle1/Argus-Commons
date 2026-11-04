@@ -32,26 +32,13 @@ export function EyeStateIndicator({ state, size = 'md', showLabel = false, class
   const color = EYE_COLORS[state];
   const label = EYE_LABELS[state];
 
+  // Calm by design: state reads from colour and glyph; motion is a slow
+  // breath while work is happening, nothing spins or flashes.
   const variants = {
-    watching: {
-      scale: [1, 1.04, 1],
-      opacity: [1, 0.7, 1],
-      transition: { duration: 3, repeat: Infinity, ease: 'easeInOut' },
-    },
-    thinking: {
-      rotate: [0, 360],
-      transition: { duration: 3, repeat: Infinity, ease: 'linear' },
-    },
-    executing: {
-      scale: [1, 1.15, 1],
-      opacity: [1, 0.4, 1],
-      transition: { duration: 0.8, repeat: Infinity, ease: 'easeInOut' },
-    },
-    complete: {
-      scale: [1.4, 1],
-      opacity: [0, 1],
-      transition: { duration: 0.4, ease: 'easeOut' },
-    },
+    watching: { opacity: 1 },
+    thinking: { opacity: [1, 0.55, 1], transition: { duration: 2.4, repeat: Infinity, ease: 'easeInOut' } },
+    executing: { opacity: [1, 0.6, 1], transition: { duration: 1.4, repeat: Infinity, ease: 'easeInOut' } },
+    complete: { opacity: [0, 1], transition: { duration: 0.4, ease: 'easeOut' } },
   };
 
   return (

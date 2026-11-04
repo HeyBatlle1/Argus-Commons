@@ -24,14 +24,14 @@ export function MemoryList({ memories, filterTypes }: Props) {
   return (
     <div className="space-y-2">
       {filtered.map((mem) => {
-        const typeColor = MEMORY_TYPE_COLORS[mem.type] ?? '#8a877f';
+        const typeColor = MEMORY_TYPE_COLORS[mem.type] ?? '#8d8c80';
         const isExpanded = expandedId === mem.id;
 
         return (
           <div
             key={mem.id}
             className="rounded p-2 cursor-pointer hover:bg-white/[0.02] transition-colors"
-            style={{ background: '#16162a', border: '1px solid #32325a' }}
+            style={{ background: '#131716', border: '1px solid #2a322f' }}
             onClick={() => setExpandedId(isExpanded ? null : mem.id)}
           >
             <div className="flex items-start gap-2 mb-1">
@@ -44,7 +44,7 @@ export function MemoryList({ memories, filterTypes }: Props) {
               <div className="flex-1 min-w-0">
                 {/* Importance bar */}
                 <div className="flex items-center gap-1.5 mb-1">
-                  <div className="flex-1 h-0.5 rounded-full" style={{ background: '#32325a' }}>
+                  <div className="flex-1 h-0.5 rounded-full" style={{ background: '#2a322f' }}>
                     <div
                       className="h-0.5 rounded-full transition-all"
                       style={{ width: `${mem.importance * 10}%`, background: typeColor }}
@@ -71,7 +71,7 @@ export function MemoryList({ memories, filterTypes }: Props) {
                     <span
                       key={tag}
                       className="text-[9px] font-mono px-1 py-0.5 rounded text-argus-textDim"
-                      style={{ background: '#1e1e38' }}
+                      style={{ background: '#191e1c' }}
                     >
                       #{tag}
                     </span>

@@ -30,18 +30,18 @@ const DAYS_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frid
 
 function creatorColor(creator: string): string {
   switch (creator) {
-    case 'argus':  return '#f0a500';
-    case 'claude': return '#5aafef';
-    default:       return '#39d353';
+    case 'argus':  return '#d9b36c';
+    case 'claude': return '#7fa8e0';
+    default:       return '#5fc7b0';
   }
 }
 
 function riskBadge(risk: string) {
   const colors: Record<string, { bg: string; text: string }> = {
-    low:    { bg: 'rgba(57,211,83,0.1)',  text: '#39d353' },
-    medium: { bg: 'rgba(240,165,0,0.1)',  text: '#f0a500' },
-    high:   { bg: 'rgba(255,68,68,0.1)',  text: '#ff4444' },
-    ghost:  { bg: 'rgba(157,154,145,0.1)', text: '#9d9a91' },
+    low:    { bg: 'rgba(95,199,176,0.1)',  text: '#5fc7b0' },
+    medium: { bg: 'rgba(217,179,108,0.1)',  text: '#d9b36c' },
+    high:   { bg: 'rgba(229,98,79,0.1)',  text: '#e5624f' },
+    ghost:  { bg: 'rgba(155,154,141,0.1)', text: '#9b9a8d' },
   };
   const c = colors[risk] || colors.low;
   return (
@@ -102,13 +102,13 @@ export function DayBubble({ date, items, anchorPos, onMouseEnter, onMouseLeave, 
         top: pos.top,
         left: pos.left,
         width: '220px',
-        background: '#0c0c18',
-        border: '1px solid #2a2a44',
+        background: '#101413',
+        border: '1px solid #2a322f',
         borderRadius: '8px',
         padding: '10px',
         fontFamily: "'JetBrains Mono', monospace",
         zIndex: 1000,
-        boxShadow: '0 8px 24px rgba(0,0,0,0.5), 0 0 0 1px rgba(240,165,0,0.08)',
+        boxShadow: '0 8px 24px rgba(0,0,0,0.5), 0 0 0 1px rgba(217,179,108,0.08)',
         animation: 'bubbleIn 0.12s ease-out',
       }}
     >
@@ -120,17 +120,17 @@ export function DayBubble({ date, items, anchorPos, onMouseEnter, onMouseLeave, 
         transform: 'translateX(-50%)',
         width: '10px',
         height: '6px',
-        background: '#0c0c18',
+        background: '#101413',
         clipPath: 'polygon(0 0, 100% 0, 50% 100%)',
-        borderBottom: '1px solid #2a2a44',
+        borderBottom: '1px solid #2a322f',
       }} />
 
       {/* Date header */}
       <div style={{ marginBottom: '8px' }}>
-        <div style={{ color: '#f0a500', fontSize: '11px', fontWeight: 700 }}>
+        <div style={{ color: '#d9b36c', fontSize: '11px', fontWeight: 700 }}>
           {dayName}
         </div>
-        <div style={{ color: '#9d9a91', fontSize: '9px', letterSpacing: '0.08em' }}>
+        <div style={{ color: '#9b9a8d', fontSize: '9px', letterSpacing: '0.08em' }}>
           {monthName} {date.getDate()}, {date.getFullYear()}
         </div>
       </div>
@@ -160,7 +160,7 @@ export function DayBubble({ date, items, anchorPos, onMouseEnter, onMouseLeave, 
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{
                   fontSize: '10px',
-                  color: item.status === 'complete' ? '#5a5a7a' : '#f0ede4',
+                  color: item.status === 'complete' ? '#64675f' : '#e6e1d3',
                   textDecoration: item.status === 'complete' ? 'line-through' : 'none',
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
@@ -170,7 +170,7 @@ export function DayBubble({ date, items, anchorPos, onMouseEnter, onMouseLeave, 
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
                   {item.time && (
-                    <span style={{ fontSize: '8px', color: '#5a5a7a' }}>{item.time}</span>
+                    <span style={{ fontSize: '8px', color: '#64675f' }}>{item.time}</span>
                   )}
                   {riskBadge(item.risk_level)}
                 </div>
@@ -181,7 +181,7 @@ export function DayBubble({ date, items, anchorPos, onMouseEnter, onMouseLeave, 
       ) : (
         <div style={{
           fontSize: '9px',
-          color: '#5a5a7a',
+          color: '#64675f',
           marginBottom: '8px',
           fontStyle: 'italic',
         }}>
@@ -194,12 +194,12 @@ export function DayBubble({ date, items, anchorPos, onMouseEnter, onMouseLeave, 
         display: 'flex',
         alignItems: 'center',
         gap: '6px',
-        background: '#1e1e30',
-        border: '1px solid #3a3a5a',
+        background: '#101413',
+        border: '1px solid #2d3633',
         borderRadius: '4px',
         padding: '4px 8px',
       }}>
-        <Plus size={10} style={{ color: '#5a5a7a', flexShrink: 0 }} />
+        <Plus size={10} style={{ color: '#64675f', flexShrink: 0 }} />
         <input
           ref={inputRef}
           value={input}
@@ -211,7 +211,7 @@ export function DayBubble({ date, items, anchorPos, onMouseEnter, onMouseLeave, 
             background: 'transparent',
             border: 'none',
             outline: 'none',
-            color: '#f0ede4',
+            color: '#e6e1d3',
             fontSize: '10px',
             fontFamily: "'JetBrains Mono', monospace",
             width: '100%',

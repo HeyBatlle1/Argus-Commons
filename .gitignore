@@ -26,3 +26,6 @@ secrets/
 
 # Build artifacts
 *.log
+
+# Lens browser deps
+browser/node_modules/

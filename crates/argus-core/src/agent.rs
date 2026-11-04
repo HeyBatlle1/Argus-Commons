@@ -26,6 +26,9 @@ TOOLS:
 • run_python — execute Python 3 code in the sandbox, returns stdout/stderr
 • run_node — execute Node.js/JavaScript code in the sandbox, returns stdout/stderr
 • web_search — current information from the web via Brave Search
+• browser — drive a real Chromium tab that the operator watches LIVE in the Lens.
+  navigate(url) → read the numbered elements → click(id) / type(id, text, submit).
+  Prefer it over http_request when a page needs JS, clicking, or forms.
 • http_request — call any API or web endpoint
 • remember, recall, forget — persistent memory across sessions
 • list_tools — see every tool available in this session
@@ -194,32 +197,75 @@ pub struct ConversationMessage {
     pub model: Option<String>,
 }
 
-// ── Model constants ────────────────────────────────────────────────────────
-pub const MODEL_HAIKU:  &str = "anthropic/claude-haiku-4-5";
-pub const MODEL_SONNET: &str = "anthropic/claude-sonnet-4-6";
-pub const MODEL_OPUS:   &str = "anthropic/claude-opus-4-7";
-pub const MODEL_GROK:       &str = "x-ai/grok-4.3";
-pub const MODEL_GROK_FAST:  &str = "x-ai/grok-4.20";
-pub const MODEL_GROK_MULTI: &str = "x-ai/grok-4.20-multi-agent";
-pub const MODEL_GEMINI: &str = "google/gemini-3.1-pro-preview";
+// ── Model roster — OPEN WEIGHTS ONLY ───────────────────────────────────────
+// These are LiteLLM aliases (infra/litellm/config.yaml), not provider IDs.
+// LiteLLM serves only what's in that file, and infra/verify-open-models.py
+// refuses to launch if a closed model is added there.
+//   local/* → Ollama on your hardware (data never leaves the machine)
+//   open/*  → open-weight models hosted on OpenRouter
+pub const MODEL_LOCAL_FAST: &str = "local/qwen3-8b";
+pub const MODEL_LOCAL_DEEP: &str = "local/qwen3.6-27b";
+pub const MODEL_LOCAL_OSS:  &str = "local/gpt-oss-20b";
+pub const MODEL_LOCAL_GEMMA: &str = "local/gemma4-26b";
+pub const MODEL_DEEPSEEK:   &str = "open/deepseek-v4.1-flash";
+pub const MODEL_GLM:        &str = "open/glm-5.3";
+pub const MODEL_KIMI:       &str = "open/kimi-k3";
+pub const MODEL_MISTRAL:    &str = "open/mistral-large-4";
+pub const MODEL_MIMO:       &str = "open/mimo-v2.6-pro";
+pub const MODEL_QWEN_OPEN:  &str = "open/qwen3.8-27b";
+pub const MODEL_NEMOTRON:   &str = "open/nemotron-3.5-super";
+
+/// Small, cheap model for background chores (skill reflection, summaries).
+/// Local by default so housekeeping never leaves the machine.
+pub const MODEL_REFLECT: &str = MODEL_LOCAL_FAST;
+
+/// Every model in cycle order (used by /toggle and the TUI).
+pub const ALL_MODELS: &[&str] = &[
+    MODEL_LOCAL_FAST, MODEL_LOCAL_DEEP, MODEL_LOCAL_OSS, MODEL_LOCAL_GEMMA,
+    MODEL_DEEPSEEK, MODEL_GLM, MODEL_KIMI, MODEL_MISTRAL, MODEL_MIMO,
+    MODEL_QWEN_OPEN, MODEL_NEMOTRON,
+];
+
+/// Short names accepted by `/model <name>` on Telegram, Discord and the TUI.
+pub const MODEL_SHORT_NAMES: &[(&str, &str)] = &[
+    ("qwen", MODEL_LOCAL_FAST),
+    ("qwen-big", MODEL_LOCAL_DEEP),
+    ("gpt-oss", MODEL_LOCAL_OSS),
+    ("gemma", MODEL_LOCAL_GEMMA),
+    ("deepseek", MODEL_DEEPSEEK),
+    ("glm", MODEL_GLM),
+    ("kimi", MODEL_KIMI),
+    ("mistral", MODEL_MISTRAL),
+    ("mimo", MODEL_MIMO),
+    ("qwen-open", MODEL_QWEN_OPEN),
+    ("nemotron", MODEL_NEMOTRON),
+];
 
 pub fn model_label(model_id: &str) -> &'static str {
     match model_id {
-        MODEL_HAIKU  => "Haiku   (fast / cheap)",
-        MODEL_SONNET => "Sonnet  (balanced)",
-        MODEL_OPUS   => "Opus    (max intelligence)",
-        MODEL_GROK       => "Grok 4.3",
-        MODEL_GROK_FAST  => "Grok 4.20  (default)",
-        MODEL_GROK_MULTI => "Grok 4.20 Multi-Agent (no tools)",
-        MODEL_GEMINI => "Gemini  (Google Pro)",
-        _            => "Unknown model",
+        MODEL_LOCAL_FAST  => "Qwen3 8B      (local · fast)",
+        MODEL_LOCAL_DEEP  => "Qwen3.6 27B   (local · strong)",
+        MODEL_LOCAL_OSS   => "gpt-oss 20B   (local · tools)",
+        MODEL_LOCAL_GEMMA => "Gemma 4 26B   (local)",
+        MODEL_DEEPSEEK    => "DeepSeek V4.1 Flash (open)",
+        MODEL_GLM         => "GLM-5.3       (open)",
+        MODEL_KIMI        => "Kimi K3       (open · deep)",
+        MODEL_MISTRAL     => "Mistral Large 4 (open)",
+        MODEL_MIMO        => "MiMo V2.6 Pro (open)",
+        MODEL_QWEN_OPEN   => "Qwen3.8 27B   (open)",
+        MODEL_NEMOTRON    => "Nemotron 3.5 Super (open)",
+        _                 => "Custom model",
     }
 }
 
-/// Returns false for models that don't support OpenAI-style tool_use via OpenRouter.
-/// When false, the agent sends no tools array — the model responds in plain text only.
-pub fn model_supports_tools(model_id: &str) -> bool {
-    !matches!(model_id, MODEL_GROK_MULTI)
+/// All roster models support OpenAI-style tool calls. Kept as a hook so a
+/// text-only model can be added without breaking the loop.
+pub fn model_supports_tools(_model_id: &str) -> bool {
+    true
+}
+
+fn env_or(key: &str, default: &str) -> String {
+    std::env::var(key).ok().filter(|v| !v.is_empty()).unwrap_or_else(|| default.to_string())
 }
 
 pub struct AgentConfig {
@@ -239,6 +285,11 @@ pub struct AgentConfig {
     /// Shared secret for authenticating requests to the workspace exec server.
     /// Sent as X-Argus-Auth header. Blocks prompt-injection SSRF to /exec.
     pub exec_auth_token: Option<String>,
+    /// Which agent this turn belongs to — selects the agent's own browser tab
+    /// in the Lens. None = "argus" (solo mode, Telegram, TUI).
+    pub agent_id: Option<String>,
+    /// Extra system-prompt layer (Commons seat temperament). Identity stays Argus.
+    pub persona: Option<String>,
 }
 
 impl AgentConfig {
@@ -246,8 +297,9 @@ impl AgentConfig {
         let brave_search_key = std::env::var("BRAVE_SEARCH_API_KEY").ok();
         Self {
             api_key,
-            model: MODEL_GROK_FAST.to_string(),
-            api_url: "https://openrouter.ai/api/v1/chat/completions".to_string(),
+            model: env_or("ARGUS_DEFAULT_MODEL", MODEL_LOCAL_FAST),
+            // LiteLLM gateway. Outside Docker: ARGUS_LLM_URL=http://localhost:4000/v1/chat/completions
+            api_url: env_or("ARGUS_LLM_URL", "http://litellm:4000/v1/chat/completions"),
             temperature: 0.7,
             brave_search_key,
             embedding: None,
@@ -255,6 +307,8 @@ impl AgentConfig {
             shell_prompter: None,
             audit: None,
             exec_auth_token: None,
+            agent_id: None,
+            persona: None,
         }
     }
 
@@ -269,32 +323,28 @@ impl AgentConfig {
     }
 
     pub fn toggle_model(&mut self) -> &str {
-        self.model = match self.model.as_str() {
-            MODEL_HAIKU      => MODEL_SONNET.to_string(),
-            MODEL_SONNET     => MODEL_OPUS.to_string(),
-            MODEL_OPUS       => MODEL_GROK.to_string(),
-            MODEL_GROK       => MODEL_GROK_FAST.to_string(),
-            MODEL_GROK_FAST  => MODEL_GROK_MULTI.to_string(),
-            MODEL_GROK_MULTI => MODEL_GEMINI.to_string(),
-            _                => MODEL_HAIKU.to_string(),  // gemini and any unknown → back to haiku
+        let idx = ALL_MODELS.iter().position(|m| *m == self.model);
+        let next = match idx {
+            Some(i) => ALL_MODELS[(i + 1) % ALL_MODELS.len()],
+            None => ALL_MODELS[0],
         };
+        self.model = next.to_string();
         &self.model
     }
 
     pub fn set_model(&mut self, name: &str) -> Result<&str, String> {
-        self.model = match name.to_lowercase().as_str() {
-            "haiku"  | MODEL_HAIKU  => MODEL_HAIKU.to_string(),
-            "sonnet" | MODEL_SONNET => MODEL_SONNET.to_string(),
-            "opus"   | MODEL_OPUS   => MODEL_OPUS.to_string(),
-            "grok"       | MODEL_GROK       => MODEL_GROK.to_string(),
-            "grok-fast"  | MODEL_GROK_FAST  => MODEL_GROK_FAST.to_string(),
-            "grok-multi" | MODEL_GROK_MULTI => MODEL_GROK_MULTI.to_string(),
-            "gemini"     | MODEL_GEMINI     => MODEL_GEMINI.to_string(),
-            other => return Err(format!(
-                "Unknown model '{}'. Use: haiku, sonnet, opus, grok, gemini", other
-            )),
-        };
-        Ok(&self.model)
+        let lower = name.trim().to_lowercase();
+        if let Some((_, id)) = MODEL_SHORT_NAMES.iter().find(|(short, _)| *short == lower) {
+            self.model = id.to_string();
+            return Ok(&self.model);
+        }
+        if lower.starts_with("local/") || lower.starts_with("open/") {
+            // Any alias from infra/litellm/config.yaml; LiteLLM rejects unknown ones.
+            self.model = lower;
+            return Ok(&self.model);
+        }
+        let names: Vec<&str> = MODEL_SHORT_NAMES.iter().map(|(s, _)| *s).collect();
+        Err(format!("Unknown model '{}'. Use: {}", name, names.join(", ")))
     }
 
     pub fn current_model_label(&self) -> &'static str {
@@ -455,6 +505,11 @@ where
         system_prompt.push_str("\n\n");
         system_prompt.push_str(&skill_context);
     }
+    // Commons seat temperament — a layer on top of Argus, never a replacement.
+    if let Some(ref persona) = config.persona {
+        system_prompt.push_str("\n\n");
+        system_prompt.push_str(persona);
+    }
 
     let mut messages = vec![
         serde_json::json!({"role": "system", "content": system_prompt}),
@@ -573,6 +628,13 @@ where
                     out.push_str(&format!("• {} — {}\n", tname, desc));
                 }
                 out
+            } else if name == "browser" {
+                tools::tool_browser(
+                    &args,
+                    http_client,
+                    config.agent_id.as_deref().unwrap_or("argus"),
+                    config.exec_auth_token.as_deref(),
+                ).await
             } else if let Some(output) =
                 tools::execute_builtin(name, &args, shell_policy, memory, http_client, config.brave_search_key.as_deref(), config.shell_prompter.clone(), config.exec_auth_token.as_deref()).await
             {
@@ -734,7 +796,7 @@ fn maybe_reflect_on_skill(
         );
 
         let body = serde_json::json!({
-            "model": MODEL_HAIKU,   // Haiku: fast, cheap, sufficient for reflection
+            "model": MODEL_REFLECT, // small local model: fast, free, never leaves the machine
             "messages": [{"role": "user", "content": reflection_prompt}],
             "temperature": 0.3,
             "max_tokens": 500,

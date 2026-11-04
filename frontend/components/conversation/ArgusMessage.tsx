@@ -42,8 +42,8 @@ export function ArgusMessage({ message, onOpenArtifact }: Props) {
                         margin: '0.75em 0',
                         borderRadius: '4px',
                         fontSize: '12px',
-                        background: '#191a21',
-                        border: '1px solid #32325a',
+                        background: '#0f1211',
+                        border: '1px solid #2a322f',
                       }}
                     >
                       {String(children).replace(/\n$/, '')}
@@ -70,26 +70,26 @@ export function ArgusMessage({ message, onOpenArtifact }: Props) {
             <button
               key={artifact.id}
               onClick={() => onOpenArtifact?.(artifacts, i)}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-mono transition-all"
+              className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-mono transition-all"
               style={{
-                background: '#12122a',
-                border: '1px solid #3a3a6a',
-                color: '#9898d8',
+                background: '#131716',
+                border: '1px solid #36403c',
+                color: '#c9bf9f',
               }}
               onMouseEnter={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background = '#1a1a3a';
-                (e.currentTarget as HTMLButtonElement).style.borderColor = '#6060b0';
+                (e.currentTarget as HTMLButtonElement).style.background = '#191e1c';
+                (e.currentTarget as HTMLButtonElement).style.borderColor = '#a6854b';
               }}
               onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background = '#12122a';
-                (e.currentTarget as HTMLButtonElement).style.borderColor = '#3a3a6a';
+                (e.currentTarget as HTMLButtonElement).style.background = '#131716';
+                (e.currentTarget as HTMLButtonElement).style.borderColor = '#36403c';
               }}
             >
               <Layers size={11} />
               <span>{artifact.title}</span>
               <span
                 className="text-[9px] px-1 py-0.5 rounded"
-                style={{ background: '#1e1e3a', color: '#6060a0' }}
+                style={{ background: '#191e1c', color: '#a6854b' }}
               >
                 {artifactLabel(artifact.type)}
               </span>

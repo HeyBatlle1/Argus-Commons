@@ -22,7 +22,7 @@ function MemBar({ used, free }: { used: string; free: string }) {
   const freeMb = parse(free);
   const total = usedMb + freeMb;
   const pct = total > 0 ? Math.round((usedMb / total) * 100) : 0;
-  const color = pct > 90 ? '#ff4444' : pct > 75 ? '#f0a500' : '#39d353';
+  const color = pct > 90 ? '#e5624f' : pct > 75 ? '#d9b36c' : '#5fc7b0';
 
   return (
     <div className="space-y-1">
@@ -44,7 +44,7 @@ function MemBar({ used, free }: { used: string; free: string }) {
 }
 
 function StatusDot({ ok, warn }: { ok: boolean; warn?: boolean }) {
-  const color = warn ? '#ff4444' : ok ? '#39d353' : '#9d9a91';
+  const color = warn ? '#e5624f' : ok ? '#5fc7b0' : '#9b9a8d';
   return (
     <span className="relative flex items-center justify-center w-2 h-2 flex-shrink-0">
       <span className="w-2 h-2 rounded-full block" style={{ background: color }} />

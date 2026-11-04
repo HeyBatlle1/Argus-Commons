@@ -34,18 +34,18 @@ function dateKey(date: Date): string {
 
 function riskColor(risk: string): string {
   switch (risk) {
-    case 'high':  return '#ff4444';
-    case 'ghost': return '#9d9a91';
-    case 'medium': return '#f0a500';
-    default:      return '#39d353';
+    case 'high':  return '#e5624f';
+    case 'ghost': return '#9b9a8d';
+    case 'medium': return '#d9b36c';
+    default:      return '#5fc7b0';
   }
 }
 
 function creatorDot(creator: string): string {
   switch (creator) {
-    case 'argus':  return '#f0a500';
-    case 'claude': return '#5aafef';
-    default:       return '#39d353';
+    case 'argus':  return '#d9b36c';
+    case 'claude': return '#7fa8e0';
+    default:       return '#5fc7b0';
   }
 }
 
@@ -121,8 +121,8 @@ export function MiniCalendar({ data = {}, onAddTask }: Props) {
       <div
         style={{
           width: '192px',
-          background: '#12121e',
-          border: '1px solid #2a2a44',
+          background: '#0f1211',
+          border: '1px solid #2a322f',
           borderRadius: '6px',
           padding: '8px',
           fontFamily: "'JetBrains Mono', monospace",
@@ -138,16 +138,16 @@ export function MiniCalendar({ data = {}, onAddTask }: Props) {
         }}>
           <button
             onClick={prevMonth}
-            style={{ background: 'none', border: 'none', color: '#9d9a91', cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}
+            style={{ background: 'none', border: 'none', color: '#9b9a8d', cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}
           >
             <ChevronLeft size={11} />
           </button>
-          <span style={{ color: '#f0a500', fontSize: '10px', fontWeight: 600, letterSpacing: '0.1em' }}>
+          <span style={{ color: '#d9b36c', fontSize: '10px', fontWeight: 600, letterSpacing: '0.1em' }}>
             {MONTHS[current.month]} {current.year}
           </span>
           <button
             onClick={nextMonth}
-            style={{ background: 'none', border: 'none', color: '#9d9a91', cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}
+            style={{ background: 'none', border: 'none', color: '#9b9a8d', cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}
           >
             <ChevronRight size={11} />
           </button>
@@ -159,7 +159,7 @@ export function MiniCalendar({ data = {}, onAddTask }: Props) {
             <div key={i} style={{
               textAlign: 'center',
               fontSize: '8px',
-              color: '#5a5a7a',
+              color: '#64675f',
               fontWeight: 600,
               letterSpacing: '0.05em',
             }}>
@@ -195,17 +195,17 @@ export function MiniCalendar({ data = {}, onAddTask }: Props) {
                   borderRadius: '3px',
                   cursor: 'pointer',
                   background: todayFlag
-                    ? 'rgba(240,165,0,0.15)'
+                    ? 'rgba(217,179,108,0.15)'
                     : isHovered
-                    ? 'rgba(240,165,0,0.07)'
+                    ? 'rgba(217,179,108,0.07)'
                     : 'transparent',
-                  border: todayFlag ? '1px solid rgba(240,165,0,0.4)' : '1px solid transparent',
+                  border: todayFlag ? '1px solid rgba(217,179,108,0.4)' : '1px solid transparent',
                   transition: 'background 0.1s ease',
                 }}
               >
                 <span style={{
                   fontSize: '9px',
-                  color: todayFlag ? '#f0a500' : '#d4d0c8',
+                  color: todayFlag ? '#d9b36c' : '#d8d3c5',
                   fontWeight: todayFlag ? 700 : 400,
                   lineHeight: 1,
                 }}>
@@ -228,7 +228,7 @@ export function MiniCalendar({ data = {}, onAddTask }: Props) {
                       />
                     ))}
                     {items.length > 3 && (
-                      <div style={{ width: '3px', height: '3px', borderRadius: '50%', background: '#5a5a7a' }} />
+                      <div style={{ width: '3px', height: '3px', borderRadius: '50%', background: '#64675f' }} />
                     )}
                   </div>
                 )}
@@ -243,16 +243,16 @@ export function MiniCalendar({ data = {}, onAddTask }: Props) {
           gap: '8px',
           marginTop: '6px',
           paddingTop: '5px',
-          borderTop: '1px solid #1a1a2e',
+          borderTop: '1px solid #232a27',
         }}>
           {[
-            { color: '#f0a500', label: 'Argus' },
-            { color: '#5aafef', label: 'Claude' },
-            { color: '#39d353', label: 'You' },
+            { color: '#d9b36c', label: 'Argus' },
+            { color: '#7fa8e0', label: 'Claude' },
+            { color: '#5fc7b0', label: 'You' },
           ].map(({ color, label }) => (
             <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
               <div style={{ width: '4px', height: '4px', borderRadius: '50%', background: color }} />
-              <span style={{ fontSize: '7px', color: '#5a5a7a', letterSpacing: '0.05em' }}>{label}</span>
+              <span style={{ fontSize: '7px', color: '#64675f', letterSpacing: '0.05em' }}>{label}</span>
             </div>
           ))}
         </div>

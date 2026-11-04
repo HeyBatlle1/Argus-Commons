@@ -13,9 +13,9 @@ export function ConnectionStatus() {
   const status: Status = connected ? 'connected' : 'disconnected';
 
   const cfg = {
-    connected:    { color: '#39d353', label: 'CONNECTED',    animate: false },
-    disconnected: { color: '#ff4444', label: 'OFFLINE',      animate: false },
-    reconnecting: { color: '#f5b800', label: 'CONNECTING...', animate: true  },
+    connected:    { color: '#5fc7b0', label: 'CONNECTED',    animate: false },
+    disconnected: { color: '#e5624f', label: 'OFFLINE',      animate: false },
+    reconnecting: { color: '#d9b36c', label: 'CONNECTING...', animate: true  },
   }[status];
 
   return (
@@ -31,14 +31,6 @@ export function ConnectionStatus() {
             style={{ background: cfg.color }}
             animate={{ scale: [1, 2], opacity: [0.6, 0] }}
             transition={{ duration: 1, repeat: Infinity }}
-          />
-        )}
-        {status === 'connected' && (
-          <motion.span
-            className="absolute inset-0 rounded-full"
-            style={{ background: cfg.color }}
-            animate={{ scale: [1, 1.8], opacity: [0.4, 0] }}
-            transition={{ duration: 3, repeat: Infinity, ease: 'easeOut' }}
           />
         )}
       </div>

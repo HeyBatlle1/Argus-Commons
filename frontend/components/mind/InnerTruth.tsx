@@ -8,11 +8,11 @@ interface Props {
 }
 
 const EMOTION_COLORS: Record<string, string> = {
-  grounded:   '#4a7c59',
-  reflective: '#c9a84c',
-  motivated:  '#4a8fc4',
-  uncertain:  '#8a877f',
-  resolved:   '#4a7c59',
+  grounded:   '#5fc7b0',
+  reflective: '#d9b36c',
+  motivated:  '#7fa8e0',
+  uncertain:  '#8d8c80',
+  resolved:   '#5fc7b0',
 };
 
 export function InnerTruth({ entries }: Props) {
@@ -23,15 +23,15 @@ export function InnerTruth({ entries }: Props) {
   return (
     <div className="space-y-3">
       {entries.map((entry) => {
-        const emotionColor = EMOTION_COLORS[entry.emotionalState] ?? '#8a877f';
+        const emotionColor = EMOTION_COLORS[entry.emotionalState] ?? '#8d8c80';
 
         return (
           <div
             key={entry.id}
             className="p-3 rounded"
             style={{
-              background: 'linear-gradient(135deg, #16162a, #1e1e38)',
-              border: '1px solid #32325a',
+              background: 'linear-gradient(135deg, #131716, #191e1c)',
+              border: '1px solid #2a322f',
             }}
           >
             <div className="flex items-center justify-between mb-2">
@@ -52,7 +52,7 @@ export function InnerTruth({ entries }: Props) {
             <p
               className="text-[11px] leading-relaxed"
               style={{
-                color: '#b8b4ac',
+                color: '#b9b4a6',
                 fontStyle: 'italic',
                 lineHeight: '1.7',
               }}
@@ -62,7 +62,7 @@ export function InnerTruth({ entries }: Props) {
             <div className="mt-2 flex items-center justify-between">
               <span
                 className="text-[9px] font-mono tracking-widest uppercase"
-                style={{ color: '#b8b5ac' }}
+                style={{ color: '#9b9a8d' }}
               >
                 {entry.truthType}
               </span>
