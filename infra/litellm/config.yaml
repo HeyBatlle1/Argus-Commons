@@ -19,7 +19,14 @@
 
 model_list:
   # ── Local (Ollama) ─────────────────────────────────────────────────────────
-  # Small default — runs on most laptops (≈6 GB).
+  # CPU-only default — Gemma 4 E4B (~4B effective params, ≈6.6 GB download,
+  # ~8 GB RAM while loaded). Tool calling supported. No GPU needed.
+  - model_name: local/gemma4-e4b
+    litellm_params:
+      model: ollama_chat/gemma4:e4b
+      api_base: os.environ/OLLAMA_BASE_URL
+
+  # Bigger local models below want a GPU or Apple silicon to be usable.
   - model_name: local/qwen3-8b
     litellm_params:
       model: ollama_chat/qwen3:8b

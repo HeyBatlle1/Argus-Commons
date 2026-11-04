@@ -38,7 +38,8 @@ const m = (
 };
 
 export const MODEL_CONFIG: Record<ModelId, ModelConfig> = {
-  'local/qwen3-8b':          m('local/qwen3-8b', 'Qwen3 8B', 'ollama', 'qwen3:8b', 'fast · default'),
+  'local/gemma4-e4b':        m('local/gemma4-e4b', 'Gemma 4 E4B', 'ollama', 'gemma4:e4b', 'CPU-friendly · default'),
+  'local/qwen3-8b':          m('local/qwen3-8b', 'Qwen3 8B', 'ollama', 'qwen3:8b', 'fast'),
   'local/qwen3.6-27b':       m('local/qwen3.6-27b', 'Qwen3.6 27B', 'ollama', 'qwen3.6:27b', 'strong generalist'),
   'local/gpt-oss-20b':       m('local/gpt-oss-20b', 'gpt-oss 20B', 'ollama', 'gpt-oss:20b', 'Apache-2.0 · tools'),
   'local/gemma4-26b':        m('local/gemma4-26b', 'Gemma 4 26B', 'ollama', 'gemma4:26b', 'MoE'),

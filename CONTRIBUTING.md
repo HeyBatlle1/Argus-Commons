@@ -22,8 +22,8 @@ The security architecture is the project. If a contribution weakens the vault, t
 ### Clone and build
 
 ```bash
-git clone https://github.com/HeyBatlle1/Argus2.git
-cd Argus2
+git clone https://github.com/HeyBatlle1/Argus-Commons.git
+cd Argus-Commons
 cargo build
 ```
 

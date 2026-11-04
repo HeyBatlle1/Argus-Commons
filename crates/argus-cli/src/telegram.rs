@@ -7,7 +7,7 @@ use std::time::Instant;
 use tokio::sync::Mutex;
 
 use argus_memory::sqlite::SqliteMemory;
-use argus_core::{AgentConfig, AgentEvent, ConversationMessage, ShellPolicy, MODEL_REFLECT, MODEL_SHORT_NAMES, model_label};
+use argus_core::{AgentConfig, AgentEvent, ConversationMessage, ShellPolicy, reflect_model, MODEL_SHORT_NAMES, model_label};
 
 /// Per-chat rate limit: max N messages per window.
 const RATE_LIMIT_MAX: u32 = 10;
@@ -189,7 +189,7 @@ async fn summarize_and_embed(
         .join("\n");
 
     let body = serde_json::json!({
-        "model": MODEL_REFLECT,
+        "model": reflect_model(),
         "messages": [
             {"role": "system", "content": "Summarize this conversation in 2-4 sentences. Focus on topics covered, decisions made, and anything memorable. Be factual and concise."},
             {"role": "user", "content": transcript}

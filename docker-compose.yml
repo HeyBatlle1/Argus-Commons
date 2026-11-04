@@ -13,9 +13,11 @@ services:
       - ARGUS_LLM_URL=http://litellm:4000/v1/chat/completions
       - ARGUS_EMBED_URL=http://litellm:4000/v1/embeddings
       - ARGUS_LLM_KEY=${LITELLM_MASTER_KEY}
-      - ARGUS_DEFAULT_MODEL=${ARGUS_DEFAULT_MODEL:-local/qwen3-8b}
+      - ARGUS_DEFAULT_MODEL=${ARGUS_DEFAULT_MODEL:-local/gemma4-e4b}
       - ARGUS_BROWSER_URL=http://argus-browser:7901
       - ARGUS_AMBIENT_MAX_ROUNDS=${ARGUS_AMBIENT_MAX_ROUNDS:-4}
+      # Set to /argus/infra/roster.cpu.json to seat local-only agents (no OpenRouter key needed)
+      - ARGUS_ROSTER_FILE=${ARGUS_ROSTER_FILE:-}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - SUPABASE_ARGUS_URL=${SUPABASE_ARGUS_URL:-}
       - SUPABASE_ARGUS_SERVICE_KEY=${SUPABASE_ARGUS_SERVICE_KEY:-}
@@ -28,6 +30,7 @@ services:
     volumes:
       - argus-data:/argus/data
       - workspace:/workspace
+      - ./infra:/argus/infra:ro
       # NOTE: docs/SECURITY_AUDIT_LOG.md (Apr 26) records this mount as removed,
       # but it was back on main. `:ro` does NOT limit the Docker API — this is
       # still root-equivalent on the host. Kept only because Sentry's container
@@ -137,6 +140,13 @@ services:
     container_name: argus-ollama
     profiles: ["ollama"]
     restart: unless-stopped
+    environment:
+      # CPU-friendly: one request at a time, keep chat + embedding models warm,
+      # room for Argus's system prompt + tool schemas (~4k tokens).
+      - OLLAMA_NUM_PARALLEL=${OLLAMA_NUM_PARALLEL:-1}
+      - OLLAMA_MAX_LOADED_MODELS=${OLLAMA_MAX_LOADED_MODELS:-2}
+      - OLLAMA_CONTEXT_LENGTH=${OLLAMA_CONTEXT_LENGTH:-8192}
+      - OLLAMA_KEEP_ALIVE=${OLLAMA_KEEP_ALIVE:-30m}
     volumes:
       - ollama-models:/root/.ollama
     networks: [llm]   # NOT on the default network — the browser can't reach it
@@ -154,7 +164,7 @@ services:
     depends_on: [ollama]
     environment:
       - OLLAMA_HOST=ollama:11434
-      - OLLAMA_MODELS_TO_PULL=${OLLAMA_MODELS_TO_PULL:-qwen3:8b nomic-embed-text}
+      - OLLAMA_MODELS_TO_PULL=${OLLAMA_MODELS_TO_PULL:-gemma4:e4b nomic-embed-text}
     entrypoint: ["/bin/sh", "-c", "sleep 3; for m in $$OLLAMA_MODELS_TO_PULL; do echo pulling $$m; ollama pull $$m; done"]
     restart: "no"
     networks: [llm]

@@ -25,8 +25,8 @@ If you just want to talk to Argus from the terminal, this is your path.
 ### 1. Clone and build
 
 ```bash
-git clone https://github.com/HeyBatlle1/Argus2.git
-cd Argus2
+git clone https://github.com/HeyBatlle1/Argus-Commons.git
+cd Argus-Commons
 cargo build --release
 ```
 
@@ -39,7 +39,7 @@ Every model call goes through LiteLLM, which only serves the open-weight models 
 `infra/litellm/config.yaml`. Outside Docker:
 
 ```bash
-ollama pull qwen3:8b && ollama pull nomic-embed-text
+ollama pull gemma4:e4b && ollama pull nomic-embed-text
 pip install 'litellm[proxy]==1.106.6'
 OLLAMA_BASE_URL=http://localhost:11434 LITELLM_MASTER_KEY=sk-argus-dev \
   litellm --config infra/litellm/config.yaml --port 4000

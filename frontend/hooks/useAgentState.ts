@@ -52,7 +52,7 @@ function loadDevData() {
     {
       id: 'seed-2',
       role: 'assistant',
-      content: `## Status: Dev Mode\n\n**Runtime:** argus-cli v0.1.0\n**Model:** Qwen3 8B (Royal tier — local, via Ollama + LiteLLM)\n**Memory:** ${DEV_MEMORIES.length} dev entries loaded\n**Mode:** Mock — set \`NEXT_PUBLIC_WS_URL\` to connect the real backend\n\nThe hundred eyes are open. What needs doing?`,
+      content: `## Status: Dev Mode\n\n**Runtime:** argus-cli v0.1.0\n**Model:** Gemma 4 E4B (Royal tier — local, via Ollama + LiteLLM)\n**Memory:** ${DEV_MEMORIES.length} dev entries loaded\n**Mode:** Mock — set \`NEXT_PUBLIC_WS_URL\` to connect the real backend\n\nThe hundred eyes are open. What needs doing?`,
       timestamp: new Date(Date.now() - 4 * 60 * 1000),
     },
   ];
@@ -143,7 +143,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
 
   // Agent state — prod starts watching, dev same
   eyeState: 'watching',
-  activeModel: 'local/qwen3-8b',
+  activeModel: 'local/gemma4-e4b',
   accessTier: 'royal',
   isStreaming: false,
 

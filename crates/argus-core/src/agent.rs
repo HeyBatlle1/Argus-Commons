@@ -203,6 +203,8 @@ pub struct ConversationMessage {
 // refuses to launch if a closed model is added there.
 //   local/* → Ollama on your hardware (data never leaves the machine)
 //   open/*  → open-weight models hosted on OpenRouter
+/// CPU-friendly default: Gemma 4 E4B (~4B effective params, runs without a GPU).
+pub const MODEL_LOCAL_TINY: &str = "local/gemma4-e4b";
 pub const MODEL_LOCAL_FAST: &str = "local/qwen3-8b";
 pub const MODEL_LOCAL_DEEP: &str = "local/qwen3.6-27b";
 pub const MODEL_LOCAL_OSS:  &str = "local/gpt-oss-20b";
@@ -216,18 +218,28 @@ pub const MODEL_QWEN_OPEN:  &str = "open/qwen3.8-27b";
 pub const MODEL_NEMOTRON:   &str = "open/nemotron-3.5-super";
 
 /// Small, cheap model for background chores (skill reflection, summaries).
-/// Local by default so housekeeping never leaves the machine.
-pub const MODEL_REFLECT: &str = MODEL_LOCAL_FAST;
+/// Local by default so housekeeping never leaves the machine. Override at
+/// runtime with ARGUS_REFLECT_MODEL — see `reflect_model()`.
+pub const MODEL_REFLECT: &str = MODEL_LOCAL_TINY;
+
+/// Model for background chores. Defaults to ARGUS_DEFAULT_MODEL so a CPU-only
+/// box never loads a second model just for housekeeping.
+pub fn reflect_model() -> String {
+    std::env::var("ARGUS_REFLECT_MODEL").ok().filter(|v| !v.is_empty())
+        .or_else(|| std::env::var("ARGUS_DEFAULT_MODEL").ok().filter(|v| !v.is_empty()))
+        .unwrap_or_else(|| MODEL_REFLECT.to_string())
+}
 
 /// Every model in cycle order (used by /toggle and the TUI).
 pub const ALL_MODELS: &[&str] = &[
-    MODEL_LOCAL_FAST, MODEL_LOCAL_DEEP, MODEL_LOCAL_OSS, MODEL_LOCAL_GEMMA,
+    MODEL_LOCAL_TINY, MODEL_LOCAL_FAST, MODEL_LOCAL_DEEP, MODEL_LOCAL_OSS, MODEL_LOCAL_GEMMA,
     MODEL_DEEPSEEK, MODEL_GLM, MODEL_KIMI, MODEL_MISTRAL, MODEL_MIMO,
     MODEL_QWEN_OPEN, MODEL_NEMOTRON,
 ];
 
 /// Short names accepted by `/model <name>` on Telegram, Discord and the TUI.
 pub const MODEL_SHORT_NAMES: &[(&str, &str)] = &[
+    ("gemma-small", MODEL_LOCAL_TINY),
     ("qwen", MODEL_LOCAL_FAST),
     ("qwen-big", MODEL_LOCAL_DEEP),
     ("gpt-oss", MODEL_LOCAL_OSS),
@@ -243,6 +255,7 @@ pub const MODEL_SHORT_NAMES: &[(&str, &str)] = &[
 
 pub fn model_label(model_id: &str) -> &'static str {
     match model_id {
+        MODEL_LOCAL_TINY  => "Gemma 4 E4B   (local · CPU-friendly)",
         MODEL_LOCAL_FAST  => "Qwen3 8B      (local · fast)",
         MODEL_LOCAL_DEEP  => "Qwen3.6 27B   (local · strong)",
         MODEL_LOCAL_OSS   => "gpt-oss 20B   (local · tools)",
@@ -297,7 +310,7 @@ impl AgentConfig {
         let brave_search_key = std::env::var("BRAVE_SEARCH_API_KEY").ok();
         Self {
             api_key,
-            model: env_or("ARGUS_DEFAULT_MODEL", MODEL_LOCAL_FAST),
+            model: env_or("ARGUS_DEFAULT_MODEL", MODEL_LOCAL_TINY),
             // LiteLLM gateway. Outside Docker: ARGUS_LLM_URL=http://localhost:4000/v1/chat/completions
             api_url: env_or("ARGUS_LLM_URL", "http://litellm:4000/v1/chat/completions"),
             temperature: 0.7,
@@ -796,7 +809,7 @@ fn maybe_reflect_on_skill(
         );
 
         let body = serde_json::json!({
-            "model": MODEL_REFLECT, // small local model: fast, free, never leaves the machine
+            "model": reflect_model(), // local by default: free, never leaves the machine
             "messages": [{"role": "user", "content": reflection_prompt}],
             "temperature": 0.3,
             "max_tokens": 500,

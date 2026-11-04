@@ -192,7 +192,8 @@ All model traffic goes through **LiteLLM** (`infra/litellm/config.yaml`). LiteLL
 
 | Alias | Upstream | Where it runs | Tier |
 |-------|----------|---------------|------|
-| `local/qwen3-8b` *(default)* | `qwen3:8b` | Ollama, your hardware | Royal |
+| `local/gemma4-e4b` *(default, no GPU needed)* | `gemma4:e4b` | Ollama, your hardware | Royal |
+| `local/qwen3-8b` | `qwen3:8b` | Ollama | Royal |
 | `local/qwen3.6-27b` | `qwen3.6:27b` | Ollama | Royal |
 | `local/gpt-oss-20b` | `gpt-oss:20b` | Ollama | Royal |
 | `local/gemma4-26b` | `gemma4:26b` | Ollama | Royal |
@@ -245,7 +246,7 @@ Reads secrets from the encrypted vault, generates the LiteLLM master key and wor
 
 The OpenRouter key is optional. Without it, only `local/*` models answer, and the Commons seats (which default to `open/*`) will error until you point them at local models via `ARGUS_ROSTER_FILE`.
 
-See [docs/SETUP.md](./docs/SETUP.md) for full setup instructions.
+See [docs/SETUP.md](./docs/SETUP.md) for full setup instructions, or [docs/CPU_SETUP.md](./docs/CPU_SETUP.md) for a no-GPU machine.
 
 ---
 

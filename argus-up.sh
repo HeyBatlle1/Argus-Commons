@@ -9,7 +9,7 @@
 # Env knobs:
 #   ARGUS_OLLAMA=native|container|none   (default: native on macOS, container elsewhere)
 #   ARGUS_STRICT_OPEN=1                  fail if OpenRouter can't be reached to verify
-#   OLLAMA_MODELS_TO_PULL="qwen3:8b nomic-embed-text"   (container mode)
+#   OLLAMA_MODELS_TO_PULL="gemma4:e4b nomic-embed-text"   (container mode)
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -111,8 +111,9 @@ case "$MODE" in
   native)
     export OLLAMA_BASE_URL="http://host.docker.internal:11434"
     if command -v ollama &>/dev/null; then
-      for m in ${OLLAMA_MODELS_TO_PULL:-qwen3:8b nomic-embed-text}; do
-        ollama list 2>/dev/null | grep -q "^${m%%:*}" || { echo "[*] ollama pull $m"; ollama pull "$m"; }
+      for m in ${OLLAMA_MODELS_TO_PULL:-gemma4:e4b nomic-embed-text}; do
+        tag="$m"; [[ "$tag" == *:* ]] || tag="$tag:latest"
+        ollama list 2>/dev/null | awk '{print $1}' | grep -qx "$tag" || { echo "[*] ollama pull $m"; ollama pull "$m"; }
       done
     else
       echo "[!] ARGUS_OLLAMA=native but no 'ollama' CLI found. Install from ollama.com or set ARGUS_OLLAMA=container."
@@ -122,7 +123,7 @@ case "$MODE" in
   container)
     export OLLAMA_BASE_URL="http://ollama:11434"
     PROFILE_ARGS=(--profile ollama)
-    echo "[+] Using containerized Ollama (first start pulls: ${OLLAMA_MODELS_TO_PULL:-qwen3:8b nomic-embed-text})"
+    echo "[+] Using containerized Ollama (first start pulls: ${OLLAMA_MODELS_TO_PULL:-gemma4:e4b nomic-embed-text})"
     ;;
   none)
     echo "[!] Ollama disabled — only open/* hosted models will answer."
