@@ -12,6 +12,8 @@ services:
       # provider key — only the LiteLLM master key.
       - ARGUS_LLM_URL=http://litellm:4000/v1/chat/completions
       - ARGUS_EMBED_URL=http://litellm:4000/v1/embeddings
+      - ARGUS_EMBED_MODEL=${ARGUS_EMBED_MODEL:-local/nomic-embed}
+      - ARGUS_EMBED_MAX_CHARS=${ARGUS_EMBED_MAX_CHARS:-8000}
       - ARGUS_LLM_KEY=${LITELLM_MASTER_KEY}
       - ARGUS_DEFAULT_MODEL=${ARGUS_DEFAULT_MODEL:-local/gemma4-e4b}
       - ARGUS_BROWSER_URL=http://argus-browser:7901

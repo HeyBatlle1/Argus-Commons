@@ -61,7 +61,14 @@ impl EmbeddingClient {
     }
 
     pub async fn embed(&self, text: &str) -> Result<Vec<f32>, String> {
-        let truncated = if text.len() > 8000 { &text[..8000] } else { text };
+        // nomic-embed-text takes ~8k tokens; hosted bge-base only 512, so the
+        // cap is configurable (ARGUS_EMBED_MAX_CHARS). Cut on a char boundary.
+        let max_chars = std::env::var("ARGUS_EMBED_MAX_CHARS").ok()
+            .and_then(|v| v.parse::<usize>().ok()).unwrap_or(8000);
+        let truncated = match text.char_indices().nth(max_chars) {
+            Some((idx, _)) => &text[..idx],
+            None => text,
+        };
 
         let body = serde_json::json!({
             "model": self.model,

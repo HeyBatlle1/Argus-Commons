@@ -7,7 +7,8 @@
 # before every launch and refuses to start if a closed model sneaks in.
 #
 # Env knobs:
-#   ARGUS_OLLAMA=native|container|none   (default: native on macOS, container elsewhere)
+#   ARGUS_OLLAMA=native|container|hosted (default: native on macOS, container elsewhere)
+#                                        hosted (alias: none) = no local models, all via OpenRouter
 #   ARGUS_STRICT_OPEN=1                  fail if OpenRouter can't be reached to verify
 #   OLLAMA_MODELS_TO_PULL="gemma4:e4b nomic-embed-text"   (container mode)
 set -e
@@ -125,8 +126,19 @@ case "$MODE" in
     PROFILE_ARGS=(--profile ollama)
     echo "[+] Using containerized Ollama (first start pulls: ${OLLAMA_MODELS_TO_PULL:-gemma4:e4b nomic-embed-text})"
     ;;
-  none)
-    echo "[!] Ollama disabled — only open/* hosted models will answer."
+  none|hosted)
+    # No local inference at all — for low-RAM / no-GPU machines.
+    # Everything (chat, Commons, background chores, embeddings) runs on
+    # open-weight models hosted on OpenRouter.
+    if [ -z "$OPENROUTER_API_KEY" ]; then
+      echo "[!] ARGUS_OLLAMA=$MODE needs an OpenRouter key:"
+      echo "    ./target/release/argus vault set openrouter_api_key YOUR_KEY"
+      exit 1
+    fi
+    export ARGUS_DEFAULT_MODEL="${ARGUS_DEFAULT_MODEL:-open/deepseek-v4.1-flash}"
+    export ARGUS_EMBED_MODEL="${ARGUS_EMBED_MODEL:-open/bge-base-embed}"
+    export ARGUS_EMBED_MAX_CHARS="${ARGUS_EMBED_MAX_CHARS:-1800}"
+    echo "[+] Hosted mode — no local models. Default engine: $ARGUS_DEFAULT_MODEL"
     ;;
 esac
 

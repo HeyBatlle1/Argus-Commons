@@ -67,6 +67,12 @@ def main():
                                          headers={"User-Agent": "argus-verify"})
             with urllib.request.urlopen(req, timeout=20) as r:
                 catalog = {d["id"]: d for d in json.load(r)["data"]}
+            # Embedding models live in a separate catalog.
+            ereq = urllib.request.Request("https://openrouter.ai/api/v1/embeddings/models",
+                                          headers={"User-Agent": "argus-verify"})
+            with urllib.request.urlopen(ereq, timeout=20) as r:
+                for d in json.load(r).get("data", []):
+                    catalog.setdefault(d["id"], d)
         except Exception as e:  # noqa: BLE001
             print(f"[verify] could not reach OpenRouter to verify weights: {e}")
             for b in bad:

@@ -1,5 +1,44 @@
 # Running Argus-Commons on a machine with no GPU
 
+## 8 GB RAM? Use hosted mode, and skip Ollama entirely
+
+With 8 GB, a local model plus Docker plus the desktop won't fit. Gemma 4 E4B
+alone wants about 8 GB. Run **every** model on OpenRouter instead. It's still
+open weights only, and the verifier still enforces that. The stack then uses
+about 2.5 GB, mostly Chromium.
+
+```bash
+# Linux Mint / Ubuntu prerequisites
+sudo apt update && sudo apt install -y build-essential pkg-config libssl-dev git curl python3 gnome-keyring
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && source ~/.cargo/env
+# Docker Engine + compose plugin (Mint is Ubuntu-based; use the "noble" repo on Mint 22)
+sudo apt install -y docker.io docker-compose-v2 && sudo usermod -aG docker $USER   # log out & back in
+
+git clone https://github.com/HeyBatlle1/Argus-Commons.git && cd Argus-Commons
+cargo build --release -j2          # -j2 keeps an 8 GB box from swapping to death; ~20–40 min first time
+./target/release/argus vault set openrouter_api_key sk-or-...
+ARGUS_OLLAMA=hosted ./argus-up.sh  # first run also builds the Docker images: ~30–60 min, ~15 GB disk
+```
+
+Open <http://localhost:3000>. In hosted mode:
+
+| What | Model | Rough cost |
+|---|---|---|
+| Solo Argus + background chores | `open/deepseek-v4.1-flash` | ~$0.05 / M input tokens |
+| Commons seats | DeepSeek, GLM, Kimi, Mistral, MiMo | cents per long session |
+| Memory embeddings (Supabase only) | `open/bge-base-embed` (768-d) | ~$0.005 / M tokens |
+
+Set a spend limit on your OpenRouter key at openrouter.ai/settings/keys.
+Ambient Commons rounds are the main thing that burns tokens.
+
+**8 GB tips:** close the browser tabs you don't need while building. If
+`cargo` gets killed (OOM), add swap first:
+`sudo fallocate -l 4G /swapfile2 && sudo chmod 600 /swapfile2 && sudo mkswap /swapfile2 && sudo swapon /swapfile2`.
+
+The rest of this guide is for running a model **locally** on CPU (16 GB+).
+
+---
+
 Everything runs locally. The default model is **Gemma 4 E4B** (`gemma4:e4b`):
 about 4B effective parameters, a 6.6 GB download, and roughly 8 GB of RAM while
 it's loaded. It supports tool calling, so Argus can use its tools.

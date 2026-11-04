@@ -87,6 +87,14 @@ model_list:
       model: openrouter/qwen/qwen3.8-27b
       api_key: os.environ/OPENROUTER_API_KEY
 
+  # Hosted embeddings for machines with no local Ollama (ARGUS_OLLAMA=none).
+  # 768 dims like nomic, so the pgvector schema fits. Input limit is 512
+  # tokens — argus-up.sh sets ARGUS_EMBED_MAX_CHARS=1800 in this mode.
+  - model_name: open/bge-base-embed
+    litellm_params:
+      model: openrouter/baai/bge-base-en-v1.5
+      api_key: os.environ/OPENROUTER_API_KEY
+
   - model_name: open/nemotron-3.5-super
     litellm_params:
       model: openrouter/nvidia/nemotron-3.5-super-vl
